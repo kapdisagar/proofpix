@@ -7,7 +7,7 @@ import {
   Plus, Camera, Lock, Unlock, Copy, Check, Download, Share2, 
   Trash2, ExternalLink, HardDrive, MessageSquare, Smartphone, 
   Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw,
-  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode
+  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode, Zap
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -71,6 +71,110 @@ export default function DashboardPage() {
   const [upgradeUtr, setUpgradeUtr] = useState('');
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+  const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
+
+  const loadRazorpaySDK = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') return resolve(false);
+      if ((window as any).Razorpay) return resolve(true);
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleDashboardRazorpayCheckout = async () => {
+    setIsRazorpayLoading(true);
+    const amount = upgradePlanTier === 'ANNUAL_PASS' ? 1999 : 299;
+    const planName = upgradePlanTier === 'ANNUAL_PASS' ? 'Annual Unlimited Pass' : 'Monthly Pro';
+
+    try {
+      const loaded = await loadRazorpaySDK();
+      if (!loaded) {
+        alert('Could not load Razorpay SDK. Please check your internet connection.');
+        setIsRazorpayLoading(false);
+        return;
+      }
+
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amount,
+          plan_tier: upgradePlanTier,
+          client_name: profile.studio_name || 'Studio Owner',
+          client_email: 'studio@proofpix.in',
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.order_id) {
+        alert(orderData.error || 'Failed to initialize Razorpay payment.');
+        setIsRazorpayLoading(false);
+        return;
+      }
+
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'ProofPix',
+        description: `Upgrade to ${planName}`,
+        image: '/proofpix-qr.jpg',
+        order_id: orderData.order_id,
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                plan_tier: upgradePlanTier,
+                amount: amount,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              const newSub = activateLocalSubscription(upgradePlanTier, response.razorpay_payment_id);
+              setSubscription(newSub);
+              setUpgradeSuccess(true);
+              confetti({ particleCount: 100, spread: 80 });
+              showToast(`Plan successfully activated: ${planName}!`);
+            } else {
+              alert(verifyData.error || 'Signature verification failed.');
+            }
+          } catch {
+            const newSub = activateLocalSubscription(upgradePlanTier, response.razorpay_payment_id);
+            setSubscription(newSub);
+            setUpgradeSuccess(true);
+            confetti({ particleCount: 100, spread: 80 });
+          }
+        },
+        prefill: {
+          name: profile.studio_name || 'Studio Owner',
+          email: 'studio@proofpix.in',
+          contact: profile.whatsapp_number || '919876543210',
+        },
+        theme: {
+          color: '#E11D48',
+        },
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (err: any) {
+      console.error('Razorpay Error:', err);
+      alert('Error initiating Razorpay checkout.');
+    } finally {
+      setIsRazorpayLoading(false);
+    }
+  };
 
   const handleUpgradeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1302,6 +1406,34 @@ export default function DashboardPage() {
                       44% OFF
                     </span>
                   </button>
+                </div>
+
+                {/* 1-Click Instant Auto-Pay with Razorpay (GPay, PhonePe, Cards) */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleDashboardRazorpayCheckout}
+                    disabled={isRazorpayLoading}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer animate-pulse"
+                  >
+                    <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+                    <span>
+                      {isRazorpayLoading 
+                        ? 'Opening Razorpay Gateway...' 
+                        : `Instant Pay ₹${upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'} (Auto-Unlock)`}
+                    </span>
+                  </button>
+                  <p className="text-[10px] text-center text-gray-400">
+                    Supports Google Pay, PhonePe, Paytm, UPI, Cards & NetBanking
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="relative flex items-center justify-center my-2">
+                  <div className="border-t border-gray-200 w-full"></div>
+                  <span className="bg-white px-3 text-[10px] uppercase font-mono text-gray-400 shrink-0">
+                    or scan direct QR code
+                  </span>
                 </div>
 
                 {/* QR Code Container - Pure Visual Display */}

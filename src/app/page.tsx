@@ -20,6 +20,106 @@ export default function HomePage() {
   const [upgradeContact, setUpgradeContact] = useState('');
   const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
   const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+  const [isRazorpayLoading, setIsRazorpayLoading] = useState(false);
+
+  const loadRazorpaySDK = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (typeof window === 'undefined') return resolve(false);
+      if ((window as any).Razorpay) return resolve(true);
+
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleRazorpayCheckout = async () => {
+    if (!upgradePlan) return;
+    setIsRazorpayLoading(true);
+
+    try {
+      const loaded = await loadRazorpaySDK();
+      if (!loaded) {
+        alert('Could not load Razorpay SDK. Please check your internet connection.');
+        setIsRazorpayLoading(false);
+        return;
+      }
+
+      // 1. Create order
+      const orderRes = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: upgradePlan.amount,
+          plan_tier: upgradePlan.tier,
+          client_name: upgradeContact.trim() || 'Studio Owner',
+          client_email: upgradeContact.includes('@') ? upgradeContact.trim() : 'photographer@studio.in',
+        }),
+      });
+
+      const orderData = await orderRes.json();
+      if (!orderRes.ok || !orderData.order_id) {
+        alert(orderData.error || 'Failed to initialize Razorpay payment.');
+        setIsRazorpayLoading(false);
+        return;
+      }
+
+      // 2. Open Razorpay options
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: 'ProofPix',
+        description: `Upgrade to ${upgradePlan.name}`,
+        image: '/proofpix-qr.jpg',
+        order_id: orderData.order_id,
+        handler: async function (response: any) {
+          try {
+            const verifyRes = await fetch('/api/payments/verify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                plan_tier: upgradePlan.tier,
+                amount: upgradePlan.amount,
+              }),
+            });
+
+            const verifyData = await verifyRes.json();
+            if (verifyData.success) {
+              setUpgradeSuccess(true);
+              confetti({ particleCount: 100, spread: 80 });
+            } else {
+              alert(verifyData.error || 'Signature verification failed.');
+            }
+          } catch {
+            setUpgradeSuccess(true);
+            confetti({ particleCount: 100, spread: 80 });
+          }
+        },
+        prefill: {
+          name: upgradeContact || 'Studio Owner',
+          email: upgradeContact.includes('@') ? upgradeContact : 'studio@proofpix.in',
+          contact: '9876543210',
+        },
+        theme: {
+          color: '#E11D48',
+        },
+      };
+
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (err: any) {
+      console.error('Razorpay Error:', err);
+      alert('Error initiating Razorpay checkout.');
+    } finally {
+      setIsRazorpayLoading(false);
+    }
+  };
 
   const handleTestDriveLink = (e: React.FormEvent) => {
     e.preventDefault();
@@ -565,11 +665,39 @@ export default function HomePage() {
                     <span>Upgrade to {upgradePlan.name}</span>
                   </div>
                   <h3 className="font-serif text-2xl font-bold text-gray-950">
-                    Scan QR to Activate Plan
+                    Activate Studio Pro
                   </h3>
                   <p className="text-xs text-gray-500">
-                    Pay <span className="font-bold text-gray-900">₹{upgradePlan.amount}</span> directly via any Indian UPI app. No extra gateway fees.
+                    Pay <span className="font-bold text-gray-900">₹{upgradePlan.amount}</span> to unlock unlimited galleries instantly.
                   </p>
+                </div>
+
+                {/* 1-Click Instant Auto-Pay with Razorpay (GPay, PhonePe, Cards) */}
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleRazorpayCheckout}
+                    disabled={isRazorpayLoading}
+                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer animate-pulse"
+                  >
+                    <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+                    <span>
+                      {isRazorpayLoading 
+                        ? 'Opening Razorpay Gateway...' 
+                        : `Instant 1-Click Pay ₹${upgradePlan.amount} (Auto-Unlock)`}
+                    </span>
+                  </button>
+                  <p className="text-[10px] text-center text-gray-400">
+                    Supports Google Pay, PhonePe, Paytm, UPI, Cards & NetBanking
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="relative flex items-center justify-center my-2">
+                  <div className="border-t border-gray-200 w-full"></div>
+                  <span className="bg-white px-3 text-[10px] uppercase font-mono text-gray-400 shrink-0">
+                    or scan direct QR code
+                  </span>
                 </div>
 
                 {/* QR Code Card - Pure Visual, Zero Personal Identity Leak */}
