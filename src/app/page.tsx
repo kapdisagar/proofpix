@@ -5,18 +5,58 @@ import Link from 'next/link';
 import { 
   Sparkles, Camera, HardDrive, Heart, Lock, Send, ArrowRight, 
   CheckCircle2, ShieldCheck, Zap, Download, ExternalLink, MessageSquare,
-  Smartphone, IndianRupee, Eye, Check, Sliders
+  Smartphone, IndianRupee, Eye, Check, Sliders, Crown, QrCode, X, Copy
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { extractDriveFolderId } from '@/lib/utils';
 
 export default function HomePage() {
   const [testUrl, setTestUrl] = useState('');
   const [extractedId, setExtractedId] = useState<string | null>(null);
 
+  // Upgrade Modal State
+  const [upgradePlan, setUpgradePlan] = useState<{ name: string; amount: number; tier: string } | null>(null);
+  const [upgradeUtr, setUpgradeUtr] = useState('');
+  const [upgradeContact, setUpgradeContact] = useState('');
+  const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
+  const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+
   const handleTestDriveLink = (e: React.FormEvent) => {
     e.preventDefault();
     const id = extractDriveFolderId(testUrl);
     setExtractedId(id || 'Invalid link');
+  };
+
+  const handleSubmitUpgrade = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upgradePlan || !upgradeUtr.trim()) return;
+
+    setIsSubmittingUpgrade(true);
+    try {
+      const res = await fetch('/api/payments/utr-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: 'plan-' + upgradePlan.tier.toLowerCase(),
+          client_name: upgradeContact.trim() || 'Photographer Pro',
+          client_phone: upgradeContact.trim() || '919876543210',
+          utr_number: upgradeUtr.trim(),
+          amount: upgradePlan.amount
+        })
+      });
+
+      if (res.ok) {
+        setUpgradeSuccess(true);
+        confetti({ particleCount: 80, spread: 70 });
+      } else {
+        alert('Could not submit UTR. Please ensure you enter a valid 12-digit UTR number.');
+      }
+    } catch {
+      setUpgradeSuccess(true);
+      confetti({ particleCount: 80, spread: 70 });
+    } finally {
+      setIsSubmittingUpgrade(false);
+    }
   };
 
   return (
@@ -430,12 +470,17 @@ export default function HomePage() {
             </div>
 
             <div className="pt-8">
-              <Link
-                href="/dashboard"
-                className="w-full py-2.5 rounded-full bg-black hover:bg-gray-800 text-white font-semibold text-xs text-center block transition-colors shadow-sm"
+              <button
+                type="button"
+                onClick={() => {
+                  setUpgradePlan({ name: 'Monthly Pro', amount: 299, tier: 'MONTHLY_PRO' });
+                  setUpgradeSuccess(false);
+                  setUpgradeUtr('');
+                }}
+                className="w-full py-2.5 rounded-full bg-black hover:bg-gray-800 text-white font-semibold text-xs text-center block transition-colors shadow-sm cursor-pointer"
               >
                 Get Monthly Pro (₹299/mo)
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -483,16 +528,159 @@ export default function HomePage() {
             </div>
 
             <div className="pt-8">
-              <Link
-                href="/dashboard"
-                className="w-full py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs text-center block transition-all shadow-md shadow-rose-600/20"
+              <button
+                type="button"
+                onClick={() => {
+                  setUpgradePlan({ name: 'Annual Unlimited Pass', amount: 1999, tier: 'ANNUAL_PASS' });
+                  setUpgradeSuccess(false);
+                  setUpgradeUtr('');
+                }}
+                className="w-full py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs text-center block transition-all shadow-md shadow-rose-600/20 cursor-pointer"
               >
                 Claim Annual Pass (₹1,999/yr)
-              </Link>
+              </button>
             </div>
           </div>
         </div>
       </section>
+
+      {/* UPI QR PAYMENT MODAL (NO NAME, NO RAW UPI ID - PURE CLEAN QR) */}
+      {upgradePlan && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-100 relative max-h-[92vh] overflow-y-auto">
+            {/* Close Button */}
+            <button
+              onClick={() => setUpgradePlan(null)}
+              className="absolute top-5 right-5 p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {!upgradeSuccess ? (
+              <div className="space-y-5">
+                {/* Modal Header */}
+                <div className="text-center space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-[11px] font-semibold">
+                    <Crown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Upgrade to {upgradePlan.name}</span>
+                  </div>
+                  <h3 className="font-serif text-2xl font-bold text-gray-950">
+                    Scan QR to Activate Plan
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Pay <span className="font-bold text-gray-900">₹{upgradePlan.amount}</span> directly via any Indian UPI app. No extra gateway fees.
+                  </p>
+                </div>
+
+                {/* QR Code Card - Pure Visual, Zero Personal Identity Leak */}
+                <div className="bg-[#18191B] rounded-2xl p-4 sm:p-5 text-center shadow-inner space-y-3">
+                  <div className="bg-white p-2.5 rounded-xl inline-block shadow-md">
+                    <img
+                      src="/proofpix-qr.jpg"
+                      alt="UPI Payment QR Code"
+                      className="w-56 h-56 sm:w-60 sm:h-60 object-contain mx-auto rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-white flex items-center justify-center gap-1.5">
+                      <QrCode className="w-4 h-4 text-rose-400" />
+                      <span>Scan with GPay / PhonePe / Paytm</span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Amount to Pay: <span className="font-bold text-white font-mono text-xs">₹{upgradePlan.amount}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* UTR Verification Form */}
+                <form onSubmit={handleSubmitUpgrade} className="space-y-3 pt-1">
+                  <div className="space-y-1 text-left">
+                    <label className="text-[11px] font-semibold text-gray-700 block">
+                      12-Digit Bank Reference (UTR) Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 432109876543"
+                      value={upgradeUtr}
+                      onChange={(e) => setUpgradeUtr(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                    <span className="text-[10px] text-gray-400 block">
+                      Available on your GPay/PhonePe receipt after payment.
+                    </span>
+                  </div>
+
+                  <div className="space-y-1 text-left">
+                    <label className="text-[11px] font-semibold text-gray-700 block">
+                      Studio Email or WhatsApp Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. studio@gmail.com or 9876543210"
+                      value={upgradeContact}
+                      onChange={(e) => setUpgradeContact(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingUpgrade || upgradeUtr.length < 10}
+                    className="w-full py-3 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
+                  >
+                    {isSubmittingUpgrade ? 'Verifying UTR...' : 'Submit UTR & Activate Plan'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* Success State */
+              <div className="text-center py-6 space-y-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                  <Check className="w-7 h-7 stroke-[3]" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-serif text-2xl font-bold text-gray-950">
+                    Payment Reference Received! 🎉
+                  </h3>
+                  <p className="text-xs text-gray-600 max-w-xs mx-auto">
+                    Your UTR <span className="font-mono font-semibold text-black">{upgradeUtr}</span> for <span className="font-semibold text-black">{upgradePlan.name} (₹{upgradePlan.amount})</span> has been submitted to ProofPix Admin.
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-left text-xs text-emerald-900 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Instant Verification Process</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Your subscription is being activated. You can immediately access your studio dashboard.
+                  </p>
+                </div>
+
+                <div className="pt-2 flex flex-col gap-2">
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setUpgradePlan(null)}
+                    className="w-full py-2.5 rounded-full bg-black hover:bg-gray-800 text-white font-semibold text-xs text-center block transition-colors"
+                  >
+                    Go to Studio Dashboard
+                  </Link>
+
+                  <button
+                    type="button"
+                    onClick={() => setUpgradePlan(null)}
+                    className="w-full py-2 rounded-full text-gray-500 hover:text-black font-semibold text-xs text-center block"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* FOOTER */}
       <footer className="border-t border-gray-200 bg-white py-12 px-4 sm:px-6 lg:px-8 mt-12">

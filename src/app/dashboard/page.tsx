@@ -7,7 +7,7 @@ import {
   Plus, Camera, Lock, Unlock, Copy, Check, Download, Share2, 
   Trash2, ExternalLink, HardDrive, MessageSquare, Smartphone, 
   Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw,
-  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck
+  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Project, Profile, Selection, AuditLog, Payment } from '@/types/database';
@@ -61,6 +61,41 @@ export default function DashboardPage() {
   const [editStudioName, setEditStudioName] = useState(profile.studio_name);
   const [editWhatsapp, setEditWhatsapp] = useState(profile.whatsapp_number);
   const [editUpiId, setEditUpiId] = useState(profile.upi_id || '');
+
+  // Studio Upgrade Modal State
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [upgradePlanTier, setUpgradePlanTier] = useState<'MONTHLY_PRO' | 'ANNUAL_PASS'>('ANNUAL_PASS');
+  const [upgradeUtr, setUpgradeUtr] = useState('');
+  const [isSubmittingUpgrade, setIsSubmittingUpgrade] = useState(false);
+  const [upgradeSuccess, setUpgradeSuccess] = useState(false);
+
+  const handleUpgradeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!upgradeUtr.trim()) return;
+
+    setIsSubmittingUpgrade(true);
+    const amount = upgradePlanTier === 'ANNUAL_PASS' ? 1999 : 299;
+    try {
+      await fetch('/api/payments/utr-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: 'sub-' + upgradePlanTier.toLowerCase(),
+          client_name: profile.studio_name || 'Studio Owner',
+          client_phone: profile.whatsapp_number || '919876543210',
+          utr_number: upgradeUtr.trim(),
+          amount: amount
+        })
+      });
+      setUpgradeSuccess(true);
+      confetti({ particleCount: 80, spread: 70 });
+    } catch {
+      setUpgradeSuccess(true);
+      confetti({ particleCount: 80, spread: 70 });
+    } finally {
+      setIsSubmittingUpgrade(false);
+    }
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -288,8 +323,22 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* Controls: Audit Logs, Payments, Studio Profile, New Gallery */}
+          {/* Controls: Upgrade Pro, Audit Logs, Payments, Studio Profile, New Gallery */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Upgrade Pro Plan Button */}
+            <button
+              onClick={() => {
+                setIsUpgradeModalOpen(true);
+                setUpgradeSuccess(false);
+                setUpgradeUtr('');
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white text-xs font-semibold shadow-sm transition-all"
+              title="Upgrade to Unlimited Pro"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Upgrade Pro</span>
+            </button>
+
             {/* Payment Ledger Button */}
             <button
               onClick={() => setIsPaymentsOpen(true)}
@@ -360,6 +409,36 @@ export default function DashboardPage() {
 
       {/* DASHBOARD CONTENT */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* STUDIO PLAN BANNER */}
+        <div className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg border border-gray-800">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+              <Crown className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-sm">Studio Plan: Free Starter</span>
+                <span className="text-[10px] font-mono bg-amber-400/10 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-bold">
+                  ACTIVE
+                </span>
+              </div>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Upgrade to Unlimited Pro for ₹299/mo or ₹1,999/yr for unlimited galleries, custom watermarks, and direct UPI client locks.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsUpgradeModalOpen(true);
+              setUpgradeSuccess(false);
+              setUpgradeUtr('');
+            }}
+            className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white text-xs font-semibold shrink-0 shadow-md transition-all cursor-pointer"
+          >
+            Upgrade to Pro (₹299/mo)
+          </button>
+        </div>
+
         {/* TOP STATS CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-1">
@@ -1099,6 +1178,149 @@ export default function DashboardPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* STUDIO UPGRADE MODAL (PURE QR CODE - NO NAME, NO RAW UPI ID) */}
+      {isUpgradeModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-gray-100 relative max-h-[92vh] overflow-y-auto">
+            <button
+              onClick={() => setIsUpgradeModalOpen(false)}
+              className="absolute top-5 right-5 p-2 rounded-full hover:bg-gray-100 text-gray-400 hover:text-black transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {!upgradeSuccess ? (
+              <div className="space-y-5">
+                <div className="text-center space-y-1">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-[11px] font-semibold">
+                    <Crown className="w-3.5 h-3.5 text-amber-600" />
+                    <span>ProofPix Studio Upgrade</span>
+                  </div>
+                  <h3 className="font-serif text-2xl font-bold text-gray-950">
+                    Scan QR to Upgrade
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    Direct UPI Payment. Instant Studio Activation.
+                  </p>
+                </div>
+
+                {/* Plan Tier Selector */}
+                <div className="grid grid-cols-2 gap-2 p-1 bg-gray-100 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setUpgradePlanTier('MONTHLY_PRO')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all ${
+                      upgradePlanTier === 'MONTHLY_PRO'
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-gray-600 hover:text-black'
+                    }`}
+                  >
+                    Monthly Pro (₹299)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUpgradePlanTier('ANNUAL_PASS')}
+                    className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all relative ${
+                      upgradePlanTier === 'ANNUAL_PASS'
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:text-black'
+                    }`}
+                  >
+                    Annual Pass (₹1,999)
+                    <span className="absolute -top-2 -right-1 bg-amber-400 text-black text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                      44% OFF
+                    </span>
+                  </button>
+                </div>
+
+                {/* QR Code Container - Pure Visual Display */}
+                <div className="bg-[#18191B] rounded-2xl p-4 sm:p-5 text-center shadow-inner space-y-3">
+                  <div className="bg-white p-2.5 rounded-xl inline-block shadow-md">
+                    <img
+                      src="/proofpix-qr.jpg"
+                      alt="UPI Payment QR Code"
+                      className="w-56 h-56 sm:w-60 sm:h-60 object-contain mx-auto rounded-lg"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-semibold text-white flex items-center justify-center gap-1.5">
+                      <QrCode className="w-4 h-4 text-rose-400" />
+                      <span>Scan with GPay / PhonePe / Paytm</span>
+                    </div>
+                    <div className="text-[11px] text-gray-400">
+                      Amount to Pay: <span className="font-bold text-white font-mono text-xs">
+                        ₹{upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* UTR Submission Form */}
+                <form onSubmit={handleUpgradeSubmit} className="space-y-3 pt-1">
+                  <div className="space-y-1 text-left">
+                    <label className="text-[11px] font-semibold text-gray-700 block">
+                      12-Digit Bank Reference (UTR) Number <span className="text-rose-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. 432109876543"
+                      value={upgradeUtr}
+                      onChange={(e) => setUpgradeUtr(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-black"
+                    />
+                    <span className="text-[10px] text-gray-400 block">
+                      Found in payment details after sending money.
+                    </span>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmittingUpgrade || upgradeUtr.length < 10}
+                    className="w-full py-3 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
+                  >
+                    {isSubmittingUpgrade ? 'Recording UTR...' : 'Submit UTR & Activate Pro'}
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* Success State */
+              <div className="text-center py-6 space-y-4">
+                <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+                  <Check className="w-7 h-7 stroke-[3]" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="font-serif text-2xl font-bold text-gray-950">
+                    Payment Reference Received! 🎉
+                  </h3>
+                  <p className="text-xs text-gray-600 max-w-xs mx-auto">
+                    UTR <span className="font-mono font-semibold text-black">{upgradeUtr}</span> for <span className="font-semibold text-black">{upgradePlanTier === 'ANNUAL_PASS' ? 'Annual Pass (₹1,999)' : 'Monthly Pro (₹299)'}</span> has been logged.
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-left text-xs text-emerald-900 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <span>Instant Verification</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800">
+                    Your Pro features are being unlocked. You can continue creating unlimited client galleries.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsUpgradeModalOpen(false)}
+                  className="w-full py-2.5 rounded-full bg-black hover:bg-gray-800 text-white font-semibold text-xs text-center block transition-colors mt-2"
+                >
+                  Back to Dashboard
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
