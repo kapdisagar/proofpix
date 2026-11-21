@@ -635,7 +635,7 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
                     )}
 
                     {/* Dark gradient on hover */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                   </div>
 
                   {/* Floating Action Buttons */}
