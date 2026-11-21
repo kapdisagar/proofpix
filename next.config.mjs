@@ -1,10 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  outputFileTracing: false,
-  webpack: (config) => {
-    config.resolve.symlinks = false;
-    return config;
-  },
   images: {
     unoptimized: true,
     remotePatterns: [

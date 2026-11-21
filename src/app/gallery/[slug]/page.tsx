@@ -19,9 +19,9 @@ import {
 } from '@/lib/mockStore';
 import { generateWhatsAppLink, generateUpiPaymentUrl } from '@/lib/utils';
 
-export default function ClientGalleryPage() {
-  const params = useParams();
-  const slug = params?.slug as string;
+export default function ClientGalleryPage({ params }: { params?: { slug?: string } }) {
+  const routeParams = useParams();
+  const slug = (params?.slug || (routeParams?.slug as string) || '');
 
   const [project, setProject] = useState<Project | null>(null);
   const [photos, setPhotos] = useState<DrivePhoto[]>([]);
