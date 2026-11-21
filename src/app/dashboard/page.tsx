@@ -10,7 +10,6 @@ import {
   Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { Project, Profile, Selection, AuditLog, Payment } from '@/types/database';
 import { 
   extractDriveFolderId, 
   generateWindowsBatchScript, 
@@ -26,8 +25,11 @@ import {
   getLocalAuditLogs,
   addLocalAuditLog,
   getLocalPayments,
-  verifyLocalPayment
+  verifyLocalPayment,
+  getLocalSubscription,
+  activateLocalSubscription
 } from '@/lib/mockStore';
+import { Project, Profile, Selection, AuditLog, Payment, Subscription } from '@/types/database';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -63,6 +65,7 @@ export default function DashboardPage() {
   const [editUpiId, setEditUpiId] = useState(profile.upi_id || '');
 
   // Studio Upgrade Modal State
+  const [subscription, setSubscription] = useState<Subscription>(getLocalSubscription());
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
   const [upgradePlanTier, setUpgradePlanTier] = useState<'MONTHLY_PRO' | 'ANNUAL_PASS'>('ANNUAL_PASS');
   const [upgradeUtr, setUpgradeUtr] = useState('');
@@ -76,7 +79,7 @@ export default function DashboardPage() {
     setIsSubmittingUpgrade(true);
     const amount = upgradePlanTier === 'ANNUAL_PASS' ? 1999 : 299;
     try {
-      await fetch('/api/payments/utr-submit', {
+      const res = await fetch('/api/payments/utr-submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -87,9 +90,21 @@ export default function DashboardPage() {
           amount: amount
         })
       });
+
+      if (res.status === 409) {
+        alert('Security Alert: This 12-digit UTR number has already been used. Please enter the unique transaction reference from your UPI app receipt.');
+        setIsSubmittingUpgrade(false);
+        return;
+      }
+
+      const newSub = activateLocalSubscription(upgradePlanTier, upgradeUtr.trim());
+      setSubscription(newSub);
       setUpgradeSuccess(true);
       confetti({ particleCount: 80, spread: 70 });
+      showToast(`Plan successfully activated: ${upgradePlanTier === 'ANNUAL_PASS' ? 'Annual Pass' : 'Monthly Pro'}!`);
     } catch {
+      const newSub = activateLocalSubscription(upgradePlanTier, upgradeUtr.trim());
+      setSubscription(newSub);
       setUpgradeSuccess(true);
       confetti({ particleCount: 80, spread: 70 });
     } finally {
@@ -106,6 +121,7 @@ export default function DashboardPage() {
     setProjects(getLocalProjects());
     setAuditLogs(getLocalAuditLogs());
     setPayments(getLocalPayments());
+    setSubscription(getLocalSubscription());
   }, []);
 
   // Save Profile Changes
@@ -229,6 +245,14 @@ export default function DashboardPage() {
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    // Check Free Plan Limit
+    if (subscription.plan_tier === 'FREE' && projects.length >= 1) {
+      setFormError('Free Starter plan limit reached (1 active gallery). Upgrade to Pro for unlimited galleries!');
+      showToast('Free plan limit reached (1 gallery). Upgrade to Pro!');
+      setIsUpgradeModalOpen(true);
+      return;
+    }
 
     const folderId = extractDriveFolderId(driveUrl);
     if (!folderId) {
@@ -409,35 +433,78 @@ export default function DashboardPage() {
 
       {/* DASHBOARD CONTENT */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* STUDIO PLAN BANNER */}
-        <div className="bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg border border-gray-800">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
-              <Crown className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm">Studio Plan: Free Starter</span>
-                <span className="text-[10px] font-mono bg-amber-400/10 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-bold">
-                  ACTIVE
-                </span>
+        {/* STUDIO PLAN BANNER WITH LIVE EXPIRY & FEATURES */}
+        {(() => {
+          const isPro = subscription.plan_tier !== 'FREE' && subscription.status === 'active';
+          const daysRemaining = Math.max(0, Math.ceil((new Date(subscription.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+          const formattedExpiry = new Date(subscription.expires_at).toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+
+          return (
+            <div className={`rounded-2xl p-4 sm:p-5 text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg border ${
+              isPro
+                ? 'bg-gradient-to-r from-gray-950 via-rose-950/40 to-gray-950 border-rose-500/30'
+                : 'bg-gradient-to-r from-gray-950 via-gray-900 to-gray-950 border-gray-800'
+            }`}>
+              <div className="flex items-center gap-3.5">
+                <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                  isPro 
+                    ? 'bg-gradient-to-br from-amber-400 to-rose-500 text-white shadow-md' 
+                    : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'
+                }`}>
+                  <Crown className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-sm sm:text-base">
+                      {subscription.plan_tier === 'ANNUAL_PASS' 
+                        ? 'Studio Plan: Annual Unlimited Pass'
+                        : subscription.plan_tier === 'MONTHLY_PRO'
+                        ? 'Studio Plan: Monthly Pro'
+                        : 'Studio Plan: Free Starter Tier'}
+                    </span>
+                    <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                      isPro 
+                        ? 'bg-emerald-400 text-black'
+                        : 'bg-amber-400/10 text-amber-300 border border-amber-400/30'
+                    }`}>
+                      {isPro ? 'ACTIVE PRO ✅' : 'FREE (1 GALLERY LIMIT)'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-300 mt-0.5">
+                    {isPro ? (
+                      <span>
+                        🔥 <strong className="text-white">Unlimited client events unlocked!</strong> Plan valid till <strong className="text-amber-300 font-mono">{formattedExpiry}</strong> ({daysRemaining} days left).
+                      </span>
+                    ) : (
+                      <span>
+                        Free tier limited to 1 active client gallery. Upgrade to Pro for unlimited galleries, custom watermarks, and direct UPI client locks.
+                      </span>
+                    )}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-gray-400 mt-0.5">
-                Upgrade to Unlimited Pro for ₹299/mo or ₹1,999/yr for unlimited galleries, custom watermarks, and direct UPI client locks.
-              </p>
+
+              <button
+                onClick={() => {
+                  setIsUpgradeModalOpen(true);
+                  setUpgradeSuccess(false);
+                  setUpgradeUtr('');
+                }}
+                className={`px-4 py-2 rounded-full text-xs font-semibold shrink-0 shadow-md transition-all cursor-pointer ${
+                  isPro
+                    ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                    : 'bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white'
+                }`}
+              >
+                {isPro ? 'Extend / Manage Plan' : 'Upgrade to Pro (₹299/mo)'}
+              </button>
             </div>
-          </div>
-          <button
-            onClick={() => {
-              setIsUpgradeModalOpen(true);
-              setUpgradeSuccess(false);
-              setUpgradeUtr('');
-            }}
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white text-xs font-semibold shrink-0 shadow-md transition-all cursor-pointer"
-          >
-            Upgrade to Pro (₹299/mo)
-          </button>
-        </div>
+          );
+        })()}
 
         {/* TOP STATS CARDS */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

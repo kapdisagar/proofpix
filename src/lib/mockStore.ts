@@ -1,4 +1,4 @@
-import { Profile, Project, Selection, AuditLog, Payment } from '@/types/database';
+import { Profile, Project, Selection, AuditLog, Payment, Subscription } from '@/types/database';
 
 export const INITIAL_PROFILE: Profile = {
   id: 'photographer-demo-1',
@@ -286,4 +286,90 @@ export function verifyLocalPayment(paymentId: string) {
   } catch (e) {
     console.error('Failed to verify payment:', e);
   }
+}
+
+const STORAGE_KEY_SUBSCRIPTION = 'proofpix_studio_subscription';
+
+export const INITIAL_SUBSCRIPTION: Subscription = {
+  id: 'sub-starter',
+  photographer_id: 'photographer-demo-1',
+  studio_name: 'The Royal Frames Studio',
+  email: 'admin@studio.in',
+  plan_tier: 'FREE',
+  amount: 0,
+  status: 'active',
+  started_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+  expires_at: new Date(Date.now() + 86400000 * 20).toISOString(),
+  created_at: new Date(Date.now() - 86400000 * 10).toISOString()
+};
+
+export function getLocalSubscription(): Subscription {
+  if (typeof window === 'undefined') return INITIAL_SUBSCRIPTION;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SUBSCRIPTION);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_SUBSCRIPTION, JSON.stringify(INITIAL_SUBSCRIPTION));
+      return INITIAL_SUBSCRIPTION;
+    }
+    const sub: Subscription = JSON.parse(raw);
+    
+    // Check if expired
+    const isExpired = new Date(sub.expires_at).getTime() < Date.now();
+    if (isExpired && sub.plan_tier !== 'FREE') {
+      sub.status = 'expired';
+    }
+    return sub;
+  } catch {
+    return INITIAL_SUBSCRIPTION;
+  }
+}
+
+export function saveLocalSubscription(sub: Subscription) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STORAGE_KEY_SUBSCRIPTION, JSON.stringify(sub));
+}
+
+export function activateLocalSubscription(planTier: 'MONTHLY_PRO' | 'ANNUAL_PASS', utrNumber: string): Subscription {
+  const now = new Date();
+  const expires = new Date(now);
+  if (planTier === 'ANNUAL_PASS') {
+    expires.setDate(expires.getDate() + 365);
+  } else {
+    expires.setDate(expires.getDate() + 30);
+  }
+
+  const newSub: Subscription = {
+    id: `sub-${Date.now()}`,
+    photographer_id: 'photographer-demo-1',
+    studio_name: 'The Royal Frames Studio',
+    email: 'admin@studio.in',
+    plan_tier: planTier,
+    amount: planTier === 'ANNUAL_PASS' ? 1999 : 299,
+    utr_number: utrNumber,
+    status: 'active',
+    started_at: now.toISOString(),
+    expires_at: expires.toISOString(),
+    created_at: now.toISOString()
+  };
+
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_SUBSCRIPTION, JSON.stringify(newSub));
+  }
+
+  // Record audit log
+  addLocalAuditLog({
+    email: 'admin@studio.in',
+    studio_name: 'The Royal Frames Studio',
+    action: 'PAYMENT_UNLOCKED',
+    ip_address: '103.21.124.89 (Studio IP)',
+    user_agent: 'Desktop Browser',
+    metadata: {
+      plan_tier: planTier,
+      amount: newSub.amount,
+      utr: utrNumber,
+      expires_at: newSub.expires_at
+    }
+  });
+
+  return newSub;
 }

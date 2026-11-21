@@ -87,15 +87,17 @@ create table if not exists public.payments (
 create index if not exists idx_payments_project on public.payments(project_id);
 create index if not exists idx_payments_utr on public.payments(utr_number);
 
--- 6. SUBSCRIPTIONS TABLE (ProofPix SaaS Pro Tiers)
+-- 6. SUBSCRIPTIONS TABLE (ProofPix SaaS Pro Tiers & Expiry Management)
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
   photographer_id uuid references public.profiles(id) on delete cascade not null,
   plan_tier text not null default 'FREE', -- 'FREE', 'MONTHLY_PRO', 'ANNUAL_PASS'
   amount integer not null default 0,
   currency text not null default 'INR',
-  status text not null default 'active',
-  current_period_end timestamptz,
+  utr_number text unique, -- Anti-Replay: Prevents reusing the same 12-digit UTR
+  status text not null default 'active', -- 'active', 'pending_verification', 'expired'
+  started_at timestamptz default now(),
+  expires_at timestamptz,
   created_at timestamptz default now()
 );
 

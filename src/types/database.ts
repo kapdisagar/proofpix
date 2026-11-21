@@ -69,6 +69,20 @@ export interface Payment {
   created_at: string;
 }
 
+export interface Subscription {
+  id: string;
+  photographer_id: string;
+  studio_name?: string | null;
+  email?: string | null;
+  plan_tier: 'FREE' | 'MONTHLY_PRO' | 'ANNUAL_PASS';
+  amount: number;
+  utr_number?: string | null;
+  status: 'active' | 'pending_verification' | 'expired';
+  started_at: string;
+  expires_at: string;
+  created_at: string;
+}
+
 export interface DrivePhoto {
   id: string;
   name: string;
