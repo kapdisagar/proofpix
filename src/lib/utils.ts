@@ -6,6 +6,29 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Normalizes Indian phone numbers into international WhatsApp standard (91XXXXXXXXXX)
+ * Handles:
+ * - "+91 98765 43210" -> "919876543210"
+ * - "09876543210" -> "919876543210"
+ * - "9876543210" -> "919876543210"
+ * - "+91-98765-43210" -> "919876543210"
+ */
+export function normalizeIndianPhone(phone: string): string {
+  if (!phone) return '919876543210';
+  let digits = phone.replace(/[^0-9]/g, '');
+  if (digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+  if (digits.length === 10) {
+    return `91${digits}`;
+  }
+  if (digits.startsWith('91') && digits.length === 12) {
+    return digits;
+  }
+  return digits.length >= 10 ? digits : '919876543210';
+}
+
+/**
  * Extracts Google Drive Folder ID from any URL format or raw ID.
  * Supports:
  * - https://drive.google.com/drive/folders/1aBcD-EfgHiJkLmNoPqRsTuVwXyZ
@@ -29,8 +52,8 @@ export function extractDriveFolderId(input: string): string | null {
     return idMatch[1];
   }
 
-  // Pattern 3: raw 25-45 char alphanumeric string with dashes/underscores
-  if (/^[a-zA-Z0-9_-]{25,50}$/.test(trimmed)) {
+  // Pattern 3: raw 25-50 char alphanumeric string with dashes/underscores
+  if (/^[a-zA-Z0-9_-]{25,55}$/.test(trimmed)) {
     return trimmed;
   }
 
@@ -40,6 +63,7 @@ export function extractDriveFolderId(input: string): string | null {
 /**
  * Generates Windows Batch script content (.bat) that copies selected photos
  * into a "Selected_Photos" subfolder inside the photographer's local directory.
+ * Safely handles filenames with spaces, parentheses, accents.
  */
 export function generateWindowsBatchScript(
   projectName: string,
@@ -56,11 +80,11 @@ export function generateWindowsBatchScript(
     `:: ==============================================================================`,
     ``,
     `echo [ProofPix] Starting file copy for: "${projectName}"`,
-    `echo [ProofPix] Target destination: .\\Selected_Photos`,
+    `echo [ProofPix] Destination folder: .\\Selected_Photos`,
     ``,
     `if not exist "Selected_Photos" (`,
     `    mkdir "Selected_Photos"`,
-    `    echo [ProofPix] Created folder: Selected_Photos`,
+    `    echo [ProofPix] Created target directory: .\\Selected_Photos`,
     `)`,
     ``,
     `set /a found_count=0`,
@@ -69,26 +93,27 @@ export function generateWindowsBatchScript(
   ];
 
   selectedFiles.forEach(({ fileName, comment }, idx) => {
-    const sanitizedName = fileName.trim().replace(/"/g, '');
-    const commentNote = comment ? ` (Note: ${comment.replace(/"/g, '')})` : '';
+    // Sanitize quotes and dangerous characters
+    const sanitizedName = fileName.trim().replace(/["`&|<>]/g, '');
+    const commentNote = comment ? ` (Note: ${comment.replace(/["`&|<>]/g, '')})` : '';
     lines.push(`:: Photo #${idx + 1}: ${sanitizedName}${commentNote}`);
     lines.push(`if exist "${sanitizedName}" (`);
     lines.push(`    copy /Y "${sanitizedName}" "Selected_Photos\\${sanitizedName}" > nul`);
     lines.push(`    set /a found_count+=1`);
     lines.push(`) else (`);
-    lines.push(`    echo [Missing] ${sanitizedName}`);
+    lines.push(`    echo [Missing] "${sanitizedName}"`);
     lines.push(`    set /a missing_count+=1`);
     lines.push(`)`);
   });
 
   lines.push(``);
   lines.push(`echo ==============================================================================`);
-  lines.push(`echo [ProofPix] Copy Complete!`);
+  lines.push(`echo [ProofPix] File Copy Process Finished!`);
   lines.push(`echo Successfully Copied: %found_count% of ${selectedFiles.length}`);
   lines.push(`if %missing_count% gtr 0 (`);
-  lines.push(`    echo Missing Files: %missing_count% (Verify raw folder or file extension)`);
+  lines.push(`    echo Missing Files: %missing_count% (Check file extensions or raw folder location)`);
   lines.push(`)`);
-  lines.push(`echo Files are ready inside the "Selected_Photos" folder.`);
+  lines.push(`echo Selected photos are ready in: .\\Selected_Photos`);
   lines.push(`echo ==============================================================================`);
   lines.push(`pause`);
 
@@ -111,7 +136,7 @@ export function downloadFile(content: string, filename: string, mimeType: string
 }
 
 /**
- * Formats a WhatsApp summary link for client submission.
+ * Formats a WhatsApp summary link for client submission to the photographer.
  */
 export function generateWhatsAppLink({
   phone,
@@ -128,9 +153,7 @@ export function generateWhatsAppLink({
   galleryUrl: string;
   notesCount: number;
 }): string {
-  // Clean phone number (e.g., 919876543210)
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  const targetPhone = cleanPhone.startsWith('91') || cleanPhone.length > 10 ? cleanPhone : `91${cleanPhone}`;
+  const targetPhone = normalizeIndianPhone(phone);
 
   const message = [
     `✨ *Photo Selection Completed!* ✨`,
@@ -138,13 +161,71 @@ export function generateWhatsAppLink({
     `📸 *Event:* ${eventName}`,
     `👤 *Client:* ${clientName}`,
     `❤️ *Total Selected Photos:* ${totalSelected}`,
-    notesCount > 0 ? `💬 *Photos with Editing Notes:* ${notesCount}` : null,
+    notesCount > 0 ? `💬 *Photos with Design Notes:* ${notesCount}` : null,
     ``,
     `🔗 *View Gallery Selections:*`,
     galleryUrl,
     ``,
-    `_Sent via ProofPix — The Zero-Storage Client Gallery_`
+    `_Sent via ProofPix — Zero-Storage Client Gallery_`
   ].filter(Boolean).join('\n');
 
   return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Formats a WhatsApp link for the photographer to send gallery invitation to the client.
+ */
+export function generateClientInviteWhatsAppLink({
+  clientPhone,
+  clientName,
+  eventName,
+  studioName,
+  galleryUrl,
+  accessPin,
+}: {
+  clientPhone: string;
+  clientName: string;
+  eventName: string;
+  studioName: string;
+  galleryUrl: string;
+  accessPin?: string | null;
+}): string {
+  const targetPhone = normalizeIndianPhone(clientPhone);
+
+  const message = [
+    `Dear *${clientName}*,`,
+    ``,
+    `Warm greetings from *${studioName}*! 🎉`,
+    `Your photos from *${eventName}* are ready for viewing and album selection.`,
+    ``,
+    `🔗 *Open Your Private Gallery:*`,
+    galleryUrl,
+    accessPin ? `🔐 *Access PIN:* ${accessPin}` : null,
+    ``,
+    `Please tap ❤️ on your favorite photos and add any notes for your album. Once completed, tap 'Submit Selection' in the gallery.`,
+    ``,
+    `Best regards,`,
+    `*${studioName}*`
+  ].filter(Boolean).join('\n');
+
+  return `https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * Generates an instant UPI payment intent link for mobile checkout (GPay, PhonePe, Paytm, BHIM).
+ */
+export function generateUpiPaymentUrl({
+  upiId,
+  studioName,
+  eventName,
+}: {
+  upiId: string;
+  studioName: string;
+  eventName: string;
+}): string {
+  if (!upiId) return '';
+  const cleanUpi = upiId.trim();
+  const cleanName = encodeURIComponent(studioName.trim());
+  const note = encodeURIComponent(`Photo Selection Balance - ${eventName.trim()}`);
+  return `upi://pay?pa=${cleanUpi}&pn=${cleanName}&tn=${note}&cu=INR`;
 }

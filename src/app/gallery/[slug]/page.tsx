@@ -1,23 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Heart, MessageSquare, Download, Share2, Lock, Unlock, X, 
   ChevronLeft, ChevronRight, Check, Send, AlertCircle, Sparkles,
-  ShieldCheck, Eye, IndianRupee, QrCode, Smartphone
+  ShieldCheck, Eye, IndianRupee, QrCode, Smartphone, Copy
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Project, Selection, DrivePhoto } from '@/types/database';
-import { SAMPLE_DRIVE_PHOTOS, getOptimizedDriveImageUrl } from '@/lib/gdrive';
+import { SAMPLE_DRIVE_PHOTOS } from '@/lib/gdrive';
 import { 
   getLocalProjects, 
   getLocalSelections, 
   saveLocalSelections, 
   saveLocalProjects 
 } from '@/lib/mockStore';
-import { generateWhatsAppLink } from '@/lib/utils';
+import { generateWhatsAppLink, generateUpiPaymentUrl } from '@/lib/utils';
 
 export default function ClientGalleryPage() {
   const params = useParams();
@@ -51,6 +51,10 @@ export default function ClientGalleryPage() {
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Touch Swipe coordinates for Lightbox
+  const touchStartX = useRef<number | null>(null);
+  const touchEndX = useRef<number | null>(null);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
@@ -66,8 +70,13 @@ export default function ClientGalleryPage() {
     if (found) {
       setProject(found);
       setIsSubmitted(found.is_submitted);
-      // If no PIN required, auto-unlock
-      if (!found.access_pin) {
+
+      // Check if gallery was already unlocked in this browser session or has no PIN
+      const isAlreadyUnlocked = 
+        !found.access_pin || 
+        (typeof window !== 'undefined' && sessionStorage.getItem(`proofpix_unlocked_${found.slug}`) === 'true');
+
+      if (isAlreadyUnlocked) {
         setPinUnlocked(true);
       }
 
@@ -110,13 +119,18 @@ export default function ClientGalleryPage() {
     }
   }, [slug]);
 
-  // Handle PIN Submission
+  // Handle PIN Submission with session persistence
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!project) return;
-    if (enteredPin.trim() === project.access_pin || enteredPin.trim() === '4829') {
+    
+    const targetPin = project.access_pin?.trim();
+    if (targetPin && enteredPin.trim() === targetPin) {
       setPinUnlocked(true);
       setPinError(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`proofpix_unlocked_${project.slug}`, 'true');
+      }
       confetti({ particleCount: 50, spread: 60 });
     } else {
       setPinError(true);
@@ -254,6 +268,29 @@ export default function ClientGalleryPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [lightboxIndex, displayedPhotos.length]);
 
+  // Touch Swipe for Mobile Lightbox
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartX.current || !touchEndX.current) return;
+    const diff = touchStartX.current - touchEndX.current;
+    if (diff > 50) {
+      // Swiped Left -> Next
+      handleNextPhoto();
+    } else if (diff < -50) {
+      // Swiped Right -> Prev
+      handlePrevPhoto();
+    }
+    touchStartX.current = null;
+    touchEndX.current = null;
+  };
+
   if (loading || !project) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center text-xs text-gray-500">
@@ -282,7 +319,7 @@ export default function ClientGalleryPage() {
           <form onSubmit={handlePinSubmit} className="space-y-4 text-xs">
             {pinError && (
               <div className="p-2.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs">
-                Incorrect PIN. Please try again or use sample PIN <strong>4829</strong>.
+                Incorrect PIN. Please verify with your photographer.
               </div>
             )}
 
@@ -290,7 +327,7 @@ export default function ClientGalleryPage() {
               type="password"
               maxLength={6}
               autoFocus
-              placeholder="Enter PIN (e.g. 4829)"
+              placeholder="Enter PIN"
               value={enteredPin}
               onChange={(e) => setEnteredPin(e.target.value)}
               className="w-full text-center tracking-[0.3em] font-mono text-lg py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-black focus:bg-white"
@@ -303,9 +340,11 @@ export default function ClientGalleryPage() {
               Access Client Gallery
             </button>
 
-            <p className="text-[10px] text-gray-400 font-mono">
-              Sample PIN: <strong>4829</strong>
-            </p>
+            {project.access_pin && (
+              <p className="text-[10px] text-gray-400 font-mono">
+                PIN Hint for Demo: <strong>{project.access_pin}</strong>
+              </p>
+            )}
           </form>
         </div>
       </div>
@@ -314,9 +353,9 @@ export default function ClientGalleryPage() {
 
   return (
     <div 
-      className="min-h-screen bg-[#FAFAFA] text-[#111827] flex flex-col"
+      className="min-h-screen bg-[#FAFAFA] text-[#111827] flex flex-col pb-24 md:pb-12"
       onContextMenu={(e) => {
-        // Disable right-click if payment is pending
+        // Disable right-click if payment is pending to protect photographer's files
         if (!project.is_paid) e.preventDefault();
       }}
     >
@@ -414,7 +453,7 @@ export default function ClientGalleryPage() {
             {/* Submit Selection CTA Button */}
             <button
               onClick={handleSubmitSelection}
-              className={`flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full font-semibold text-xs transition-all shadow-sm ${
+              className={`hidden sm:flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full font-semibold text-xs transition-all shadow-sm ${
                 isSubmitted
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                   : 'bg-black hover:bg-gray-800 text-white'
@@ -563,21 +602,55 @@ export default function ClientGalleryPage() {
         )}
       </main>
 
-      {/* FULLSCREEN LIGHTBOX MODAL */}
+      {/* MOBILE FLOATING BOTTOM PROOFING BAR */}
+      <div className="sm:hidden fixed bottom-4 left-4 right-4 z-40 bg-white/95 backdrop-blur-md border border-gray-200 p-3 rounded-2xl shadow-xl flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-rose-50 flex items-center justify-center text-rose-600">
+            <Heart className="w-3.5 h-3.5 fill-rose-600" />
+          </div>
+          <div className="text-xs">
+            <span className="font-bold text-gray-950">{selections.length}</span>
+            <span className="text-gray-500"> / {project.max_selection}</span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setFilterMode(filterMode === 'all' ? 'favorites' : 'all')}
+            className="px-3 py-1.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 bg-gray-50"
+          >
+            {filterMode === 'all' ? 'View Selected' : 'Show All'}
+          </button>
+          <button
+            onClick={handleSubmitSelection}
+            className="px-4 py-1.5 rounded-xl bg-black text-white text-xs font-bold shadow-sm flex items-center gap-1.5"
+          >
+            <Send className="w-3.5 h-3.5" />
+            <span>Submit</span>
+          </button>
+        </div>
+      </div>
+
+      {/* FULLSCREEN LIGHTBOX MODAL (WITH TOUCH SWIPE FOR MOBILE) */}
       {lightboxIndex !== null && displayedPhotos[lightboxIndex] && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between animate-fadeIn text-white select-none">
+        <div 
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col justify-between animate-fadeIn text-white select-none"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
           {/* Top Bar */}
           <div className="p-4 flex items-center justify-between text-xs border-b border-white/10">
             <div className="flex items-center gap-3">
               <span className="font-mono text-gray-400">
                 {lightboxIndex + 1} / {displayedPhotos.length}
               </span>
-              <span className="font-medium truncate max-w-xs sm:max-w-md">
+              <span className="font-medium truncate max-w-[160px] sm:max-w-md">
                 {displayedPhotos[lightboxIndex].name}
               </span>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               {/* Heart in Lightbox */}
               <button
                 onClick={() => handleToggleHeart(displayedPhotos[lightboxIndex])}
@@ -619,7 +692,7 @@ export default function ClientGalleryPage() {
             <button
               onClick={handlePrevPhoto}
               disabled={lightboxIndex === 0}
-              className="absolute left-4 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white disabled:opacity-20 z-20"
+              className="hidden sm:flex absolute left-4 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white disabled:opacity-20 z-20"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
@@ -628,7 +701,7 @@ export default function ClientGalleryPage() {
               <img
                 src={displayedPhotos[lightboxIndex].thumbnailLink}
                 alt={displayedPhotos[lightboxIndex].name}
-                className="max-h-[82vh] max-w-[90vw] object-contain rounded-lg shadow-2xl pointer-events-none"
+                className="max-h-[80vh] max-w-[92vw] object-contain rounded-lg shadow-2xl pointer-events-none"
               />
 
               {!project.is_paid && (
@@ -643,7 +716,7 @@ export default function ClientGalleryPage() {
             <button
               onClick={handleNextPhoto}
               disabled={lightboxIndex === displayedPhotos.length - 1}
-              className="absolute right-4 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white disabled:opacity-20 z-20"
+              className="hidden sm:flex absolute right-4 p-3 rounded-full bg-black/40 hover:bg-black/80 text-white disabled:opacity-20 z-20"
             >
               <ChevronRight className="w-6 h-6" />
             </button>
@@ -651,7 +724,7 @@ export default function ClientGalleryPage() {
 
           {/* Bottom Lightbox Strip */}
           <div className="p-3 text-center text-xs text-gray-400 border-t border-white/10 font-mono">
-            Use Left / Right arrow keys to navigate · Escape to close
+            Swipe or use Left / Right keys · Tap outside or X to close
           </div>
         </div>
       )}
@@ -789,7 +862,7 @@ export default function ClientGalleryPage() {
         </div>
       )}
 
-      {/* UPI PAYMENT MODAL */}
+      {/* UPI PAYMENT MODAL (WITH DEEP LINKING FOR MOBILE) */}
       {isUpiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
           <div className="relative w-full max-w-sm bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-5 shadow-2xl text-center">
@@ -805,9 +878,22 @@ export default function ClientGalleryPage() {
                 Unlock High-Res Downloads
               </h4>
               <p className="text-xs text-gray-500">
-                Scan using any UPI app (GPay, PhonePe, Paytm, CRED). Once paid, the studio unlocks downloads instantly.
+                Scan with any UPI app (GPay, PhonePe, Paytm, CRED). Once payment is received, the studio marks it cleared to unlock full-res files.
               </p>
             </div>
+
+            {/* Direct Mobile UPI App Intent Button */}
+            <a
+              href={generateUpiPaymentUrl({
+                upiId: project.profiles?.upi_id || 'royalstudio@oksbi',
+                studioName: project.watermark_text || 'Studio',
+                eventName: project.event_name,
+              })}
+              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Open in UPI App (GPay / PhonePe / Paytm)</span>
+            </a>
 
             {/* QR Mockup */}
             <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center justify-center space-y-2">
@@ -824,7 +910,7 @@ export default function ClientGalleryPage() {
                 navigator.clipboard?.writeText(project.profiles?.upi_id || 'royalstudio@oksbi');
                 showToast('UPI ID copied to clipboard!');
               }}
-              className="w-full py-2.5 rounded-xl bg-black hover:bg-gray-800 text-white font-semibold text-xs"
+              className="w-full py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-900 font-semibold text-xs"
             >
               Copy UPI ID
             </button>

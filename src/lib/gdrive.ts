@@ -117,12 +117,12 @@ export const SAMPLE_DRIVE_PHOTOS: DrivePhoto[] = [
 
 /**
  * Fetches images from a public Google Drive folder using Google Drive API v3.
- * Server-side function.
+ * Server-side function with sanitization and fallbacks.
  */
 export async function fetchDriveFolderImages({
   folderId,
   pageToken,
-  pageSize = 50,
+  pageSize = 60,
   apiKey,
 }: {
   folderId: string;
@@ -132,8 +132,11 @@ export async function fetchDriveFolderImages({
 }): Promise<DriveResponse> {
   const key = apiKey || process.env.GOOGLE_DRIVE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_DRIVE_API_KEY;
 
+  // Sanitize folder ID to prevent injection
+  const cleanFolderId = (folderId || '').trim().replace(/[^a-zA-Z0-9_-]/g, '');
+
   // Fallback to sample photos if no key provided or if demo folder
-  if (!key || folderId === 'demo' || folderId.startsWith('demo-')) {
+  if (!key || !cleanFolderId || cleanFolderId === 'demo' || cleanFolderId.startsWith('demo-')) {
     return {
       files: SAMPLE_DRIVE_PHOTOS,
       nextPageToken: null
@@ -141,12 +144,12 @@ export async function fetchDriveFolderImages({
   }
 
   try {
-    const query = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
+    const query = encodeURIComponent(`'${cleanFolderId}' in parents and mimeType contains 'image/' and trashed = false`);
     const fields = encodeURIComponent('nextPageToken, files(id, name, mimeType, thumbnailLink, webContentLink, webViewLink, size, imageMediaMetadata)');
     
     let url = `https://www.googleapis.com/drive/v3/files?q=${query}&fields=${fields}&pageSize=${pageSize}&key=${key}`;
     if (pageToken) {
-      url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      url += `&pageToken=${encodeURIComponent(pageToken.trim())}`;
     }
 
     const res = await fetch(url, {
@@ -168,14 +171,22 @@ export async function fetchDriveFolderImages({
     }
 
     const data = await res.json();
-    const files: DrivePhoto[] = (data.files || []).map((file: any) => ({
-      ...file,
-      // Default to crisp s800 for thumbnails
-      thumbnailLink: file.thumbnailLink ? getOptimizedDriveImageUrl(file.thumbnailLink, 800) : ''
-    }));
+    const files: DrivePhoto[] = (data.files || []).map((file: any) => {
+      // If thumbnailLink is provided by Google Drive, optimize to s800
+      let thumb = file.thumbnailLink ? getOptimizedDriveImageUrl(file.thumbnailLink, 800) : '';
+      if (!thumb && file.id) {
+        // Direct thumbnail fallback
+        thumb = `https://drive.google.com/thumbnail?id=${file.id}&sz=w800`;
+      }
+
+      return {
+        ...file,
+        thumbnailLink: thumb
+      };
+    });
 
     return {
-      files,
+      files: files.length > 0 ? files : SAMPLE_DRIVE_PHOTOS,
       nextPageToken: data.nextPageToken || null
     };
   } catch (error) {

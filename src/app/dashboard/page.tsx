@@ -5,17 +5,20 @@ import Link from 'next/link';
 import { 
   Plus, Camera, Lock, Unlock, Copy, Check, Download, Share2, 
   Trash2, ExternalLink, HardDrive, MessageSquare, Smartphone, 
-  Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw
+  Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw,
+  Edit3, IndianRupee, Send
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Project, Profile, Selection } from '@/types/database';
 import { 
   extractDriveFolderId, 
   generateWindowsBatchScript, 
-  downloadFile 
+  downloadFile,
+  generateClientInviteWhatsAppLink
 } from '@/lib/utils';
 import { 
   getLocalProfile, 
+  saveLocalProfile,
   getLocalProjects, 
   saveLocalProjects, 
   getLocalSelections 
@@ -25,10 +28,12 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<Profile>(getLocalProfile());
   const [projects, setProjects] = useState<Project[]>([]);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [exportProject, setExportProject] = useState<Project | null>(null);
   const [exportSelections, setExportSelections] = useState<Selection[]>([]);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [copiedFilenames, setCopiedFilenames] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // New Project Form State
   const [eventName, setEventName] = useState('');
@@ -40,10 +45,35 @@ export default function DashboardPage() {
   const [accessPin, setAccessPin] = useState('4829');
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Profile Edit Form State
+  const [editStudioName, setEditStudioName] = useState(profile.studio_name);
+  const [editWhatsapp, setEditWhatsapp] = useState(profile.whatsapp_number);
+  const [editUpiId, setEditUpiId] = useState(profile.upi_id || '');
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   useEffect(() => {
     const loaded = getLocalProjects();
     setProjects(loaded);
   }, []);
+
+  // Save Profile Changes
+  const handleSaveProfile = (e: React.FormEvent) => {
+    e.preventDefault();
+    const updatedProfile: Profile = {
+      ...profile,
+      studio_name: editStudioName.trim() || 'My Photography Studio',
+      whatsapp_number: editWhatsapp.trim() || '919876543210',
+      upi_id: editUpiId.trim() || null,
+    };
+    setProfile(updatedProfile);
+    saveLocalProfile(updatedProfile);
+    setIsProfileOpen(false);
+    showToast('Studio profile updated successfully!');
+  };
 
   // Toggle Payment Lock (is_paid)
   const handleTogglePaymentLock = (projectId: string) => {
@@ -52,6 +82,9 @@ export default function DashboardPage() {
         const nextState = !p.is_paid;
         if (nextState) {
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+          showToast(`Unlocked downloads & removed watermark for ${p.event_name}`);
+        } else {
+          showToast(`Payment locked & watermark activated for ${p.event_name}`);
         }
         return { ...p, is_paid: nextState };
       }
@@ -75,6 +108,7 @@ export default function DashboardPage() {
     const names = exportSelections.map((s) => s.file_name).join(', ');
     navigator.clipboard?.writeText(names);
     setCopiedFilenames(true);
+    showToast('Filenames copied! Paste into Lightroom filter');
     setTimeout(() => setCopiedFilenames(false), 2500);
   };
 
@@ -88,6 +122,7 @@ export default function DashboardPage() {
     const sanitizedFilename = `ProofPix_Copy_${exportProject.slug}.bat`;
     downloadFile(scriptContent, sanitizedFilename, 'application/x-bat');
     confetti({ particleCount: 40, spread: 50 });
+    showToast('Windows Batch Script (.bat) downloaded');
   };
 
   // Copy Client Gallery Link
@@ -95,6 +130,7 @@ export default function DashboardPage() {
     const fullUrl = `${window.location.origin}/gallery/${slug}`;
     navigator.clipboard?.writeText(fullUrl);
     setCopiedSlug(slug);
+    showToast('Client gallery link copied to clipboard!');
     setTimeout(() => setCopiedSlug(null), 2500);
   };
 
@@ -140,6 +176,7 @@ export default function DashboardPage() {
 
     confetti({ particleCount: 70, spread: 60 });
     setIsCreateOpen(false);
+    showToast('New client gallery created successfully!');
 
     // Reset Form
     setEventName('');
@@ -148,17 +185,25 @@ export default function DashboardPage() {
     setDriveUrl('');
   };
 
-  // Delete project
+  // Delete project with confirmation
   const handleDeleteProject = (projectId: string) => {
-    if (confirm('Are you sure you want to delete this gallery?')) {
+    if (confirm('Are you sure you want to delete this gallery? This action cannot be undone.')) {
       const updated = projects.filter((p) => p.id !== projectId);
       setProjects(updated);
       saveLocalProjects(updated);
+      showToast('Gallery deleted');
     }
   };
 
   return (
     <div className="min-h-screen bg-[#FAFAFA] text-[#111827]">
+      {/* TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-4 py-2 rounded-full text-xs font-semibold shadow-lg animate-fadeIn flex items-center gap-2">
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* HEADER BAR */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -172,12 +217,29 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* Studio Profile Pill */}
+          {/* Studio Profile Trigger Pill */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex flex-col text-right">
-              <span className="text-xs font-semibold text-gray-900">{profile.studio_name}</span>
-              <span className="text-[10px] text-gray-500 font-mono">UPI: {profile.upi_id || 'Not set'}</span>
-            </div>
+            <button
+              onClick={() => {
+                setEditStudioName(profile.studio_name);
+                setEditWhatsapp(profile.whatsapp_number);
+                setEditUpiId(profile.upi_id || '');
+                setIsProfileOpen(true);
+              }}
+              className="flex items-center gap-2 p-1.5 px-3 rounded-xl hover:bg-gray-100 text-left transition-colors border border-transparent hover:border-gray-200"
+              title="Click to edit Studio details"
+            >
+              <div className="hidden sm:flex flex-col text-right">
+                <span className="text-xs font-semibold text-gray-900 flex items-center gap-1 justify-end">
+                  <span>{profile.studio_name}</span>
+                  <Edit3 className="w-3 h-3 text-gray-400" />
+                </span>
+                <span className="text-[10px] text-gray-500 font-mono">
+                  UPI: {profile.upi_id || 'Not set'}
+                </span>
+              </div>
+            </button>
+
             <button
               onClick={() => setIsCreateOpen(true)}
               className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-sm transition-all"
@@ -370,7 +432,7 @@ export default function DashboardPage() {
                       </div>
 
                       {/* Action buttons row */}
-                      <div className="flex items-center justify-between gap-2 pt-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                         <div className="flex items-center gap-2">
                           {/* Export Selection Modal Trigger */}
                           <button
@@ -399,6 +461,25 @@ export default function DashboardPage() {
                               </>
                             )}
                           </button>
+
+                          {/* Send WhatsApp Invite to Client */}
+                          <a
+                            href={generateClientInviteWhatsAppLink({
+                              clientPhone: project.client_whatsapp || '919876543210',
+                              clientName: project.client_name,
+                              eventName: project.event_name,
+                              studioName: profile.studio_name,
+                              galleryUrl: typeof window !== 'undefined' ? `${window.location.origin}/gallery/${project.slug}` : '',
+                              accessPin: project.access_pin,
+                            })}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-semibold transition-colors"
+                            title="Send WhatsApp invitation message to client"
+                          >
+                            <Send className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Invite Client</span>
+                          </a>
                         </div>
 
                         <div className="flex items-center gap-1">
@@ -569,6 +650,85 @@ export default function DashboardPage() {
                   className="px-6 py-2.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-sm transition-all"
                 >
                   Generate Gallery Link
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT STUDIO PROFILE MODAL */}
+      {isProfileOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-md bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-5 shadow-2xl">
+            <div className="flex items-start justify-between pb-3 border-b border-gray-100">
+              <div>
+                <span className="text-[10px] font-mono text-rose-600 uppercase font-semibold">
+                  Studio Settings
+                </span>
+                <h3 className="font-serif text-2xl font-bold text-gray-950">
+                  Edit Studio Profile
+                </h3>
+              </div>
+              <button
+                onClick={() => setIsProfileOpen(false)}
+                className="text-gray-400 hover:text-black"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Studio / Brand Name:</label>
+                <input
+                  type="text"
+                  required
+                  value={editStudioName}
+                  onChange={(e) => setEditStudioName(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Photographer WhatsApp Number:</label>
+                <input
+                  type="tel"
+                  required
+                  value={editWhatsapp}
+                  onChange={(e) => setEditWhatsapp(e.target.value)}
+                  placeholder="e.g. 919876543210"
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white font-mono"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Client photo selections will be submitted directly to this WhatsApp number.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Studio UPI ID (for Client Balance Unlock):</label>
+                <input
+                  type="text"
+                  value={editUpiId}
+                  onChange={(e) => setEditUpiId(e.target.value)}
+                  placeholder="e.g. yourstudio@oksbi"
+                  className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileOpen(false)}
+                  className="px-4 py-2 text-gray-500 hover:text-black"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-full bg-black hover:bg-gray-800 text-white font-semibold shadow-sm"
+                >
+                  Save Studio Changes
                 </button>
               </div>
             </form>

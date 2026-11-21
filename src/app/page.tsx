@@ -284,6 +284,53 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* HOW IT WORKS (3 SIMPLE STEPS) */}
+      <section id="how-it-works" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center space-y-3 mb-12">
+          <span className="text-xs font-mono uppercase tracking-wider text-rose-600 font-semibold">
+            Simple 3-Step Workflow
+          </span>
+          <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-950">
+            How ProofPix Works for Indian Studios
+          </h2>
+          <p className="text-sm text-gray-600 max-w-xl mx-auto">
+            No uploading photos to new servers. Keep your existing Google Drive workflow and deliver a luxury client experience.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 font-bold flex items-center justify-center font-mono text-sm border border-rose-100">
+              01
+            </div>
+            <h3 className="font-serif text-lg font-bold text-gray-950">Paste Google Drive Folder</h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Upload your shoot to your own Google Drive. Paste the shared folder link into ProofPix. Our engine instantly streams high-res previews without using server storage.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 font-bold flex items-center justify-center font-mono text-sm border border-rose-100">
+              02
+            </div>
+            <h3 className="font-serif text-lg font-bold text-gray-950">Client Proofs on Mobile</h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Send the private link with PIN. Clients tap ❤️ on favorite photos and type editing notes (e.g. "front page par rakhna"). Watermarks protect your photos until final payment.
+            </p>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-xs space-y-3">
+            <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 font-bold flex items-center justify-center font-mono text-sm border border-rose-100">
+              03
+            </div>
+            <h3 className="font-serif text-lg font-bold text-gray-950">WhatsApp & Lightroom Sync</h3>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Client submits and you receive a 1-Click WhatsApp summary. Copy filenames directly into Lightroom or download our Windows Batch Script (.bat) to auto-copy RAW files.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* DISRUPTIVE INDIAN PRICING CARDS */}
       <section id="pricing" className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center space-y-3 mb-12">

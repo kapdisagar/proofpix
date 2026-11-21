@@ -3,14 +3,23 @@ import { fetchDriveFolderImages } from '@/lib/gdrive';
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const folderId = searchParams.get('folderId');
+  const rawFolderId = searchParams.get('folderId');
   const pageToken = searchParams.get('pageToken') || undefined;
   const pageSizeParam = searchParams.get('pageSize');
-  const pageSize = pageSizeParam ? parseInt(pageSizeParam, 10) : 50;
+  const pageSize = pageSizeParam ? Math.min(Math.max(parseInt(pageSizeParam, 10) || 50, 10), 100) : 50;
 
-  if (!folderId) {
+  if (!rawFolderId) {
     return NextResponse.json(
       { error: 'Missing folderId parameter' },
+      { status: 400 }
+    );
+  }
+
+  // Sanitize folderId to alphanumeric, dash and underscore
+  const folderId = rawFolderId.trim().replace(/[^a-zA-Z0-9_-]/g, '');
+  if (!folderId) {
+    return NextResponse.json(
+      { error: 'Invalid folderId parameter format' },
       { status: 400 }
     );
   }
@@ -22,7 +31,13 @@ export async function GET(request: NextRequest) {
       pageSize,
     });
 
-    return NextResponse.json(data);
+    const response = NextResponse.json(data);
+    // Cache at edge for 5 minutes to prevent rate limit exhaustion
+    response.headers.set(
+      'Cache-Control',
+      'public, s-maxage=300, stale-while-revalidate=600'
+    );
+    return response;
   } catch (error) {
     console.error('[API /api/gdrive Error]:', error);
     return NextResponse.json(
