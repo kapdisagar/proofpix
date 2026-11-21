@@ -810,23 +810,35 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* FOOTER */}
+      {/* FOOTER WITH COMPLIANCE & LEGAL LINKS FOR RAZORPAY APPROVAL */}
       <footer className="border-t border-gray-200 bg-white py-12 px-4 sm:px-6 lg:px-8 mt-12">
-        <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-gray-500">
-          <div className="flex items-center gap-2.5">
-            <span className="font-serif text-lg font-bold text-gray-900">ProofPix</span>
-            <span>·</span>
-            <span>The Zero-Storage Client Gallery for Indian Photographers</span>
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6 text-xs text-gray-500">
+            <div className="flex items-center gap-2.5">
+              <span className="font-serif text-lg font-bold text-gray-900">ProofPix</span>
+              <span>·</span>
+              <span>The Zero-Storage Client Gallery for Indian Photographers</span>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <Link href="/gallery/rohan-priya-udaipur" className="hover:text-black">Sample Gallery</Link>
+              <Link href="/dashboard" className="hover:text-black">Dashboard</Link>
+              <Link href="/login" className="hover:text-black">Photographer Login</Link>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <Link href="/gallery/rohan-priya-udaipur" className="hover:text-black">Sample Gallery</Link>
-            <Link href="/dashboard" className="hover:text-black">Dashboard</Link>
-            <Link href="/login" className="hover:text-black">Photographer Login</Link>
-          </div>
+          {/* Mandatory Razorpay Compliance & Policy Links */}
+          <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4 text-[11px] text-gray-400">
+            <div className="flex items-center gap-4 sm:gap-6 font-medium">
+              <Link href="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
+              <Link href="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
+              <Link href="/refund-policy" className="hover:text-gray-900 transition-colors">Refund & Cancellation</Link>
+              <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact Us</Link>
+            </div>
 
-          <div className="text-gray-400 font-mono text-[11px]">
-            © 2026 ProofPix. Engineered for High-Volume Studios.
+            <div className="font-mono">
+              © 2026 ProofPix Technologies. All Rights Reserved.
+            </div>
           </div>
         </div>
       </footer>
