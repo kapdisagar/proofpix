@@ -127,18 +127,47 @@ Visit `http://localhost:3000` in your browser.
 
 ---
 
+## 🛡️ Real Login Tracking & Audit Security
+
+ProofPix includes built-in security auditing for studio owners:
+- **Audit Logs Table:** Tracks every login, signup, project creation, payment unlock, and UTR submission with:
+  - User Email & Studio Name
+  - Client IP Address (via `x-forwarded-for` / `x-real-ip`)
+  - User Agent (Device, Browser, Operating System)
+  - Exact Timestamp (ISO 8601)
+- **Security & Login Audit Drawer:** Accessible directly from `/dashboard` with 1 click to view active sessions and audit trails in real-time.
+
+---
+
+## 💳 Real Payment Security & UTR Verification
+
+To prevent unauthorized unlocks and support Indian payment habits:
+1. **Cryptographic HMAC SHA-256 Signature Verification (`/api/payments/verify`):**
+   - Direct Razorpay integration verifies payment authenticity using constant-time cryptographic comparisons. Tampered or fake signatures are blocked with `400 Bad Request`.
+2. **Peer-to-Peer Indian UPI 12-Digit UTR Bank Verification (`/api/payments/utr-submit`):**
+   - Clients paying directly via PhonePe, Google Pay, or Paytm submit their 12-digit Bank Reference (UTR) number.
+   - The studio owner sees pending payments in their **"Payments & UTR Verification"** drawer with the client's name, phone, amount (₹), and 12-digit UTR.
+   - Studio owner checks their bank passbook and clicks **"Confirm & Unlock Gallery"** in 1 click.
+
+---
+
 ## 🚀 Deploying to Vercel (100% Free Tier)
 
-1. Push this repository to GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: complete ProofPix micro-saas production release"
-   gh repo create proofpix --public --source=. --remote=origin --push
+The repository is already pushed and live on GitHub:
+👉 **[https://github.com/kapdisagar/proofpix](https://github.com/kapdisagar/proofpix)**
+
+### Instant 1-Click Deployment:
+1. Visit **[vercel.com/new](https://vercel.com/new)**.
+2. Select **`kapdisagar/proofpix`** from your GitHub repositories.
+3. In the **Environment Variables** section, paste:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+   GOOGLE_DRIVE_API_KEY=your-google-drive-api-key
+   RAZORPAY_KEY_ID=your-razorpay-key-id          # optional
+   RAZORPAY_KEY_SECRET=your-razorpay-key-secret  # optional
    ```
-2. Import the project in [Vercel](https://vercel.com/new).
-3. Add environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `GOOGLE_DRIVE_API_KEY`).
-4. Click **Deploy** — your live gallery is ready to share with clients worldwide!
+4. Click **Deploy** — Vercel builds the Next.js app in ~45 seconds and gives you a free live `https://proofpix.vercel.app` domain!
 
 ---
 
