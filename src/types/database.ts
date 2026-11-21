@@ -39,6 +39,36 @@ export interface Selection {
   created_at?: string;
 }
 
+export interface AuditLog {
+  id: string;
+  user_id?: string | null;
+  email: string;
+  studio_name?: string | null;
+  action: 'LOGIN' | 'SIGNUP' | 'LOGOUT' | 'CREATE_GALLERY' | 'PAYMENT_UNLOCKED' | 'PAYMENT_LOCKED' | 'UTR_SUBMITTED' | 'SUBMIT_SELECTION';
+  ip_address?: string | null;
+  user_agent?: string | null;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface Payment {
+  id: string;
+  project_id: string;
+  photographer_id?: string | null;
+  client_name: string;
+  client_phone?: string | null;
+  amount: number;
+  currency: string;
+  gateway: 'razorpay' | 'upi_direct' | 'cashfree';
+  razorpay_order_id?: string | null;
+  razorpay_payment_id?: string | null;
+  razorpay_signature?: string | null;
+  utr_number?: string | null;
+  status: 'pending' | 'verified' | 'captured' | 'failed';
+  verified_at?: string | null;
+  created_at: string;
+}
+
 export interface DrivePhoto {
   id: string;
   name: string;

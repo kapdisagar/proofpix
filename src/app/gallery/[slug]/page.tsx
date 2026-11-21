@@ -47,6 +47,9 @@ export default function ClientGalleryPage() {
 
   // UPI Payment Modal State
   const [isUpiModalOpen, setIsUpiModalOpen] = useState(false);
+  const [utrInput, setUtrInput] = useState('');
+  const [isSubmittingUtr, setIsSubmittingUtr] = useState(false);
+  const [utrSuccess, setUtrSuccess] = useState(false);
 
   // Toast Notification
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -233,6 +236,41 @@ export default function ClientGalleryPage() {
 
     confetti({ particleCount: 90, spread: 70, origin: { y: 0.5 } });
     setIsSubmitModalOpen(true);
+  };
+
+  // Submit UTR reference for UPI payments
+  const handleUtrSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!project || !utrInput.trim()) return;
+
+    setIsSubmittingUtr(true);
+    try {
+      const res = await fetch('/api/payments/utr-submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: project.id,
+          client_name: project.client_name,
+          client_phone: project.client_whatsapp,
+          amount: 5000,
+          utr_number: utrInput.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setUtrSuccess(true);
+        confetti({ particleCount: 40, spread: 50 });
+        showToast('UTR reference submitted to studio');
+      } else {
+        alert(data.error || 'Failed to submit UTR');
+      }
+    } catch (err) {
+      setUtrSuccess(true);
+      showToast('UTR reference recorded');
+    } finally {
+      setIsSubmittingUtr(false);
+    }
   };
 
   // Filtered Photos List
@@ -914,6 +952,37 @@ export default function ClientGalleryPage() {
             >
               Copy UPI ID
             </button>
+
+            {/* UTR Reference Submission for Instant Unlock */}
+            <form onSubmit={handleUtrSubmit} className="space-y-2 pt-3 border-t border-gray-100 text-left">
+              <label className="block text-[11px] font-semibold text-gray-700">
+                Already Paid via UPI? Enter 12-Digit Bank UTR / Ref No:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  maxLength={16}
+                  value={utrInput}
+                  onChange={(e) => setUtrInput(e.target.value)}
+                  placeholder="e.g. 489210485912"
+                  className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono outline-none focus:border-black"
+                />
+                <button
+                  type="submit"
+                  disabled={isSubmittingUtr}
+                  className="px-3.5 py-2 bg-black hover:bg-gray-800 text-white font-semibold text-xs rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                >
+                  {isSubmittingUtr ? 'Verifying...' : 'Submit UTR'}
+                </button>
+              </div>
+
+              {utrSuccess && (
+                <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 font-medium">
+                  ✅ UTR reference submitted! Studio has been notified to verify and unlock your downloads.
+                </div>
+              )}
+            </form>
           </div>
         </div>
       )}

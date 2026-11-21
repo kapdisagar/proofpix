@@ -1,4 +1,4 @@
-import { Profile, Project, Selection } from '@/types/database';
+import { Profile, Project, Selection, AuditLog, Payment } from '@/types/database';
 
 export const INITIAL_PROFILE: Profile = {
   id: 'photographer-demo-1',
@@ -93,10 +93,78 @@ export const INITIAL_SELECTIONS: Record<string, Selection[]> = {
   ]
 };
 
-// Local storage key helpers
+export const INITIAL_AUDIT_LOGS: AuditLog[] = [
+  {
+    id: 'audit-1',
+    user_id: 'photographer-demo-1',
+    email: 'admin@royalstudio.in',
+    studio_name: 'The Royal Frames Studio',
+    action: 'LOGIN',
+    ip_address: '103.21.124.89 (Mumbai, India)',
+    user_agent: 'Chrome 122 (Windows 11)',
+    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+    metadata: { method: 'Email/Password', status: 'SUCCESS' }
+  },
+  {
+    id: 'audit-2',
+    user_id: 'photographer-demo-1',
+    email: 'admin@royalstudio.in',
+    studio_name: 'The Royal Frames Studio',
+    action: 'CREATE_GALLERY',
+    ip_address: '103.21.124.89 (Mumbai, India)',
+    user_agent: 'Chrome 122 (Windows 11)',
+    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+    metadata: { event_name: 'Rohan & Priya Royal Wedding', slug: 'rohan-priya-udaipur' }
+  },
+  {
+    id: 'audit-3',
+    user_id: 'photographer-demo-1',
+    email: 'client@priyasharma.com',
+    studio_name: 'The Royal Frames Studio',
+    action: 'UTR_SUBMITTED',
+    ip_address: '49.36.182.204 (Jaipur, India)',
+    user_agent: 'Mobile Safari (iPhone 15 Pro)',
+    created_at: new Date(Date.now() - 3600000 * 1).toISOString(),
+    metadata: { utr_number: '489210485912', amount: 5000, event: 'Rohan & Priya Wedding' }
+  }
+];
+
+export const INITIAL_PAYMENTS: Payment[] = [
+  {
+    id: 'pay-1',
+    project_id: 'proj-1',
+    photographer_id: 'photographer-demo-1',
+    client_name: 'Priya Sharma',
+    client_phone: '919876543210',
+    amount: 5000,
+    currency: 'INR',
+    gateway: 'upi_direct',
+    utr_number: '489210485912',
+    status: 'pending',
+    created_at: new Date(Date.now() - 3600000 * 1).toISOString()
+  },
+  {
+    id: 'pay-2',
+    project_id: 'proj-2',
+    photographer_id: 'photographer-demo-1',
+    client_name: 'Aarav Mehta',
+    client_phone: '919812345678',
+    amount: 7500,
+    currency: 'INR',
+    gateway: 'razorpay',
+    razorpay_payment_id: 'pay_NqL384jK829a',
+    status: 'captured',
+    verified_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+    created_at: new Date(Date.now() - 3600000 * 6).toISOString()
+  }
+];
+
+// Local storage keys
 const STORAGE_KEY_PROJECTS = 'proofpix_demo_projects';
 const STORAGE_KEY_SELECTIONS = 'proofpix_demo_selections';
 const STORAGE_KEY_PROFILE = 'proofpix_demo_profile';
+const STORAGE_KEY_AUDIT = 'proofpix_audit_logs';
+const STORAGE_KEY_PAYMENTS = 'proofpix_payments';
 
 export function getLocalProfile(): Profile {
   if (typeof window === 'undefined') return INITIAL_PROFILE;
@@ -152,5 +220,70 @@ export function saveLocalSelections(projectId: string, selections: Selection[]) 
     localStorage.setItem(STORAGE_KEY_SELECTIONS, JSON.stringify(all));
   } catch (e) {
     console.error('Failed to save selections:', e);
+  }
+}
+
+export function getLocalAuditLogs(): AuditLog[] {
+  if (typeof window === 'undefined') return INITIAL_AUDIT_LOGS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_AUDIT);
+    return raw ? JSON.parse(raw) : INITIAL_AUDIT_LOGS;
+  } catch {
+    return INITIAL_AUDIT_LOGS;
+  }
+}
+
+export function addLocalAuditLog(log: Omit<AuditLog, 'id' | 'created_at'>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getLocalAuditLogs();
+    const newLog: AuditLog = {
+      ...log,
+      id: `audit-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [newLog, ...existing];
+    localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to log audit event:', e);
+  }
+}
+
+export function getLocalPayments(): Payment[] {
+  if (typeof window === 'undefined') return INITIAL_PAYMENTS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PAYMENTS);
+    return raw ? JSON.parse(raw) : INITIAL_PAYMENTS;
+  } catch {
+    return INITIAL_PAYMENTS;
+  }
+}
+
+export function addLocalPayment(payment: Omit<Payment, 'id' | 'created_at'>) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getLocalPayments();
+    const newPayment: Payment = {
+      ...payment,
+      id: `pay-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [newPayment, ...existing];
+    localStorage.setItem(STORAGE_KEY_PAYMENTS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to save payment record:', e);
+  }
+}
+
+export function verifyLocalPayment(paymentId: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = getLocalPayments();
+    const updated = existing.map((p) =>
+      p.id === paymentId ? { ...p, status: 'verified' as const, verified_at: new Date().toISOString() } : p
+    );
+    localStorage.setItem(STORAGE_KEY_PAYMENTS, JSON.stringify(updated));
+  } catch (e) {
+    console.error('Failed to verify payment:', e);
   }
 }
