@@ -90,6 +90,7 @@ export interface DrivePhoto {
   thumbnailLink: string;
   webContentLink?: string;
   webViewLink?: string;
+  fullViewLink?: string;
   size?: string;
   imageMediaMetadata?: {
     width?: number;

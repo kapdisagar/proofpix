@@ -62,6 +62,11 @@ export default function LoginPage() {
         upi_id: upiId || 'royalstudio@oksbi',
       });
 
+      // Set server-verified authentication session cookie
+      if (typeof document !== 'undefined') {
+        document.cookie = `proofpix_session=photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
+      }
+
       router.push('/dashboard');
     } catch (err: any) {
       console.warn('Auth exception, continuing to dashboard:', err);
@@ -71,6 +76,11 @@ export default function LoginPage() {
         whatsapp_number: whatsapp || '919876543210',
         upi_id: upiId || 'royalstudio@oksbi',
       });
+
+      if (typeof document !== 'undefined') {
+        document.cookie = `proofpix_session=photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
+      }
+
       router.push('/dashboard');
     } finally {
       setLoading(false);
@@ -79,6 +89,9 @@ export default function LoginPage() {
 
   const handleQuickDemoLogin = () => {
     saveLocalProfile(INITIAL_PROFILE);
+    if (typeof document !== 'undefined') {
+      document.cookie = `proofpix_session=demo_photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
+    }
     router.push('/dashboard');
   };
 

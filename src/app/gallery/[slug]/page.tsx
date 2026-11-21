@@ -28,6 +28,8 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
   const [selections, setSelections] = useState<Selection[]>([]);
   const [filterMode, setFilterMode] = useState<'all' | 'favorites'>('all');
   const [loading, setLoading] = useState(true);
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // PIN Gate State
   const [pinUnlocked, setPinUnlocked] = useState(false);
@@ -63,6 +65,28 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  // Cursor pagination loader
+  const handleLoadMore = async () => {
+    if (!project || !nextPageToken || isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const res = await fetch(
+        `/api/gdrive?folderId=${encodeURIComponent(project.drive_folder_id)}&slug=${encodeURIComponent(project.slug)}&pageToken=${encodeURIComponent(nextPageToken)}&pageSize=48`
+      );
+      const data = await res.json();
+      if (data && data.files && data.files.length > 0) {
+        setPhotos((prev) => [...prev, ...data.files]);
+        setNextPageToken(data.nextPageToken || null);
+      } else {
+        setNextPageToken(null);
+      }
+    } catch (err) {
+      console.error('Failed to load more photos:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
+
   // Load project, photos & selections
   useEffect(() => {
     if (!slug) return;
@@ -83,21 +107,38 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
         setPinUnlocked(true);
       }
 
-      const sels = getLocalSelections(found.id);
-      setSelections(sels);
+      // 1. Fetch selections from session-backed database API with local fallback
+      fetch(`/api/gallery/selections?projectId=${encodeURIComponent(found.id)}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data && data.selections && data.selections.length > 0) {
+            setSelections(data.selections);
+            saveLocalSelections(found.id, data.selections);
+          } else {
+            const sels = getLocalSelections(found.id);
+            setSelections(sels);
+          }
+        })
+        .catch(() => {
+          const sels = getLocalSelections(found.id);
+          setSelections(sels);
+        });
 
-      // Fetch Drive photos via /api/gdrive
-      fetch(`/api/gdrive?folderId=${encodeURIComponent(found.drive_folder_id)}`)
+      // 2. Fetch Drive photos via /api/gdrive with slug for secure server proxy
+      fetch(`/api/gdrive?folderId=${encodeURIComponent(found.drive_folder_id)}&slug=${encodeURIComponent(found.slug)}&pageSize=48`)
         .then((res) => res.json())
         .then((data) => {
           if (data && data.files && data.files.length > 0) {
             setPhotos(data.files);
+            setNextPageToken(data.nextPageToken || null);
           } else {
             setPhotos(SAMPLE_DRIVE_PHOTOS);
+            setNextPageToken(null);
           }
         })
         .catch(() => {
           setPhotos(SAMPLE_DRIVE_PHOTOS);
+          setNextPageToken(null);
         })
         .finally(() => setLoading(false));
     } else {
@@ -153,6 +194,11 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
       setSelections(updated);
       saveLocalSelections(project.id, updated);
       showToast(`Removed from favorites`);
+
+      // Sync to session-backed database API
+      fetch(`/api/gallery/selections?projectId=${encodeURIComponent(project.id)}&driveFileId=${encodeURIComponent(photo.id)}`, {
+        method: 'DELETE',
+      }).catch(console.error);
     } else {
       // Check Max Limit
       if (selections.length >= project.max_selection) {
@@ -174,6 +220,16 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
       saveLocalSelections(project.id, updated);
       confetti({ particleCount: 30, spread: 40, origin: { y: 0.8 } });
       showToast(`Added to favorites ❤️ (${updated.length}/${project.max_selection})`);
+
+      // Sync to session-backed database API
+      fetch(`/api/gallery/selections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          selection: newSelection,
+        }),
+      }).catch(console.error);
     }
   };
 
@@ -216,6 +272,19 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
     saveLocalSelections(project.id, updated);
     setActiveCommentPhoto(null);
     showToast(`Note saved for editor 💬`);
+
+    // Sync saved comment to session-backed database API
+    const targetSel = updated.find((s) => s.drive_file_id === activeCommentPhoto.id);
+    if (targetSel) {
+      fetch(`/api/gallery/selections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: project.id,
+          selection: targetSel,
+        }),
+      }).catch(console.error);
+    }
   };
 
   // Submit Final Selection
@@ -553,7 +622,7 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
                       src={photo.thumbnailLink}
                       alt={photo.name}
                       loading="lazy"
-                      className="w-full h-full object-cover filter brightness-[0.98] group-hover:brightness-105 group-hover:scale-103 transition-transform duration-500 pointer-events-none"
+                      className="w-full h-full object-cover filter brightness-[0.98] group-hover:brightness-105 group-hover:scale-103 transition-transform duration-500 pointer-events-none gallery-protected-image"
                     />
 
                     {/* DIAGONAL WATERMARK (ACTIVE WHEN is_paid == false) */}
@@ -636,6 +705,30 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* CURSOR-BASED PAGINATION / LOAD MORE */}
+        {nextPageToken && filterMode === 'all' && (
+          <div className="pt-8 pb-4 flex justify-center">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={isLoadingMore}
+              className="px-6 py-3 rounded-full bg-white hover:bg-gray-50 border border-gray-300 text-gray-800 font-semibold text-xs transition-all shadow-sm hover:shadow flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {isLoadingMore ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-rose-600 border-t-transparent rounded-full animate-spin" />
+                  <span>Loading Next Photos...</span>
+                </>
+              ) : (
+                <>
+                  <span>Load More Photos</span>
+                  <ChevronRight className="w-4 h-4 text-gray-500" />
+                </>
+              )}
+            </button>
           </div>
         )}
       </main>
@@ -737,9 +830,9 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
 
             <div className="relative max-h-full max-w-full flex items-center justify-center">
               <img
-                src={displayedPhotos[lightboxIndex].thumbnailLink}
+                src={displayedPhotos[lightboxIndex].fullViewLink || displayedPhotos[lightboxIndex].thumbnailLink}
                 alt={displayedPhotos[lightboxIndex].name}
-                className="max-h-[80vh] max-w-[92vw] object-contain rounded-lg shadow-2xl pointer-events-none"
+                className="max-h-[80vh] max-w-[92vw] object-contain rounded-lg shadow-2xl pointer-events-none gallery-protected-image"
               />
 
               {!project.is_paid && (
@@ -880,6 +973,7 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
                   totalSelected: selections.length,
                   galleryUrl: typeof window !== 'undefined' ? window.location.href : '',
                   notesCount: selections.filter((s) => s.comment).length,
+                  sampleFilenames: selections.map((s) => ({ fileName: s.file_name, comment: s.comment })),
                 })}
                 target="_blank"
                 rel="noopener noreferrer"

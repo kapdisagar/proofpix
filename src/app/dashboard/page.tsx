@@ -13,6 +13,7 @@ import confetti from 'canvas-confetti';
 import { 
   extractDriveFolderId, 
   generateWindowsBatchScript, 
+  generateMacBashScript,
   downloadFile,
   generateClientInviteWhatsAppLink
 } from '@/lib/utils';
@@ -336,6 +337,19 @@ export default function DashboardPage() {
     showToast('Windows Batch Script (.bat) downloaded');
   };
 
+  // Download macOS & Linux Shell Script (.sh)
+  const handleDownloadMacScript = () => {
+    if (!exportProject || exportSelections.length === 0) return;
+    const scriptContent = generateMacBashScript(
+      exportProject.event_name,
+      exportSelections.map((s) => ({ fileName: s.file_name, comment: s.comment }))
+    );
+    const sanitizedFilename = `ProofPix_Copy_${exportProject.slug}.sh`;
+    downloadFile(scriptContent, sanitizedFilename, 'application/x-sh');
+    confetti({ particleCount: 40, spread: 50 });
+    showToast('macOS & Linux Script (.sh) downloaded');
+  };
+
   // Copy Client Gallery Link
   const handleCopyLink = (slug: string) => {
     const fullUrl = `${window.location.origin}/gallery/${slug}`;
@@ -422,8 +436,11 @@ export default function DashboardPage() {
     }
   };
 
-  // Sign Out
+  // Sign Out with Cookie Clearance
   const handleSignOut = () => {
+    if (typeof document !== 'undefined') {
+      document.cookie = 'proofpix_session=; path=/; max-age=0; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    }
     router.push('/login');
   };
 
@@ -1310,7 +1327,15 @@ export default function DashboardPage() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition-colors shadow-sm"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download Windows Batch Script (.bat)</span>
+                <span>Windows Batch (.bat)</span>
+              </button>
+
+              <button
+                onClick={handleDownloadMacScript}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gray-900 hover:bg-black text-white text-xs font-semibold transition-colors shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>macOS / Linux (.sh)</span>
               </button>
             </div>
 

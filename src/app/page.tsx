@@ -71,9 +71,8 @@ export default function HomePage() {
         key: orderData.key_id,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'ProofPix',
+        name: 'ProofPix Studio',
         description: `Upgrade to ${upgradePlan.name}`,
-        image: '/proofpix-qr.jpg',
         order_id: orderData.order_id,
         handler: async function (response: any) {
           try {
@@ -99,7 +98,14 @@ export default function HomePage() {
           } catch {
             setUpgradeSuccess(true);
             confetti({ particleCount: 100, spread: 80 });
+          } finally {
+            setIsRazorpayLoading(false);
           }
+        },
+        modal: {
+          ondismiss: function () {
+            setIsRazorpayLoading(false);
+          },
         },
         prefill: {
           name: upgradeContact || 'Studio Owner',
@@ -702,14 +708,21 @@ export default function HomePage() {
                     type="button"
                     onClick={handleRazorpayCheckout}
                     disabled={isRazorpayLoading}
-                    className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer animate-pulse"
+                    className={`w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed ${
+                      isRazorpayLoading ? 'animate-pulse' : ''
+                    }`}
                   >
-                    <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
-                    <span>
-                      {isRazorpayLoading 
-                        ? 'Opening Razorpay Gateway...' 
-                        : `Pay ₹${upgradePlan.amount} Securely with Razorpay`}
-                    </span>
+                    {isRazorpayLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Connecting to Razorpay Gateway...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
+                        <span>Pay ₹{upgradePlan.amount} Securely with Razorpay</span>
+                      </>
+                    )}
                   </button>
 
                   <p className="text-[10px] text-center text-gray-400">
