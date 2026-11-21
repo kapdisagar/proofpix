@@ -1408,83 +1408,52 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
+                {/* Plan Summary Card */}
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 text-xs space-y-2 text-gray-700">
+                  <div className="flex items-center justify-between font-semibold text-gray-900">
+                    <span>Plan Duration:</span>
+                    <span className="font-mono text-emerald-600 font-bold">
+                      {upgradePlanTier === 'ANNUAL_PASS' ? '365 Days (1 Full Year)' : '30 Days (Monthly)'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold text-gray-900 border-t border-gray-200 pt-2">
+                    <span>Total Amount:</span>
+                    <span className="font-serif text-xl font-bold text-rose-600">
+                      ₹{upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'}
+                    </span>
+                  </div>
+                </div>
+
                 {/* 1-Click Instant Auto-Pay with Razorpay (GPay, PhonePe, Cards) */}
-                <div className="space-y-2">
+                <div className="space-y-3 pt-1">
                   <button
                     type="button"
                     onClick={handleDashboardRazorpayCheckout}
                     disabled={isRazorpayLoading}
-                    className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer animate-pulse"
+                    className="w-full py-4 px-4 rounded-2xl bg-gradient-to-r from-rose-600 via-rose-500 to-amber-500 hover:from-rose-700 hover:to-amber-600 text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-rose-600/25 cursor-pointer animate-pulse"
                   >
                     <Zap className="w-4 h-4 text-amber-200 fill-amber-200" />
                     <span>
                       {isRazorpayLoading 
                         ? 'Opening Razorpay Gateway...' 
-                        : `Instant Pay ₹${upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'} (Auto-Unlock)`}
+                        : `Pay ₹${upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'} with Razorpay`}
                     </span>
                   </button>
                   <p className="text-[10px] text-center text-gray-400">
-                    Supports Google Pay, PhonePe, Paytm, UPI, Cards & NetBanking
+                    Supports Google Pay, PhonePe, Paytm, UPI Apps, Credit/Debit Cards & NetBanking
                   </p>
-                </div>
 
-                {/* Divider */}
-                <div className="relative flex items-center justify-center my-2">
-                  <div className="border-t border-gray-200 w-full"></div>
-                  <span className="bg-white px-3 text-[10px] uppercase font-mono text-gray-400 shrink-0">
-                    or scan direct QR code
-                  </span>
-                </div>
-
-                {/* QR Code Container - Pure Visual Display */}
-                <div className="bg-[#18191B] rounded-2xl p-4 sm:p-5 text-center shadow-inner space-y-3">
-                  <div className="bg-white p-2.5 rounded-xl inline-block shadow-md">
-                    <img
-                      src="/proofpix-qr.jpg"
-                      alt="UPI Payment QR Code"
-                      className="w-56 h-56 sm:w-60 sm:h-60 object-contain mx-auto rounded-lg"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="text-xs font-semibold text-white flex items-center justify-center gap-1.5">
-                      <QrCode className="w-4 h-4 text-rose-400" />
-                      <span>Scan with GPay / PhonePe / Paytm</span>
-                    </div>
-                    <div className="text-[11px] text-gray-400">
-                      Amount to Pay: <span className="font-bold text-white font-mono text-xs">
-                        ₹{upgradePlanTier === 'ANNUAL_PASS' ? '1,999' : '299'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* UTR Submission Form */}
-                <form onSubmit={handleUpgradeSubmit} className="space-y-3 pt-1">
-                  <div className="space-y-1 text-left">
-                    <label className="text-[11px] font-semibold text-gray-700 block">
-                      12-Digit Bank Reference (UTR) Number <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. 432109876543"
-                      value={upgradeUtr}
-                      onChange={(e) => setUpgradeUtr(e.target.value.replace(/\D/g, '').slice(0, 12))}
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-black"
-                    />
-                    <span className="text-[10px] text-gray-400 block">
-                      Found in payment details after sending money.
+                  <div className="pt-2 flex items-center justify-center gap-4 text-[11px] text-gray-400 font-medium">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Razorpay Verified</span>
                     </span>
+                    <span>·</span>
+                    <span>100% RBI Authorized</span>
+                    <span>·</span>
+                    <span>Instant Pro Unlock</span>
                   </div>
-
-                  <button
-                    type="submit"
-                    disabled={isSubmittingUpgrade || upgradeUtr.length < 10}
-                    className="w-full py-3 rounded-full bg-black hover:bg-gray-800 disabled:bg-gray-300 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-md"
-                  >
-                    {isSubmittingUpgrade ? 'Recording UTR...' : 'Submit UTR & Activate Pro'}
-                  </button>
-                </form>
+                </div>
               </div>
             ) : (
               /* Success State */
