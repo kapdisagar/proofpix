@@ -8,7 +8,7 @@ import {
   Trash2, ExternalLink, HardDrive, MessageSquare, Smartphone, 
   Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw,
   Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode, Zap,
-  Settings, User
+  Settings, User, KeyRound
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -58,9 +58,15 @@ export default function DashboardPage() {
   const [driveUrl, setDriveUrl] = useState('');
   const [maxSelection, setMaxSelection] = useState(100);
   const [watermarkText, setWatermarkText] = useState(profile.studio_name || 'The Royal Frames Studio');
-  const [accessPin, setAccessPin] = useState('4829');
+  const [accessPin, setAccessPin] = useState(profile.default_pin || '');
   const [balanceAmount, setBalanceAmount] = useState(15000);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Gallery PIN Editing State
+  const [editingPinProject, setEditingPinProject] = useState<Project | null>(null);
+  const [newPinValue, setNewPinValue] = useState('');
+  const [isUpdatingPin, setIsUpdatingPin] = useState(false);
+  const [copiedPinId, setCopiedPinId] = useState<string | null>(null);
 
   // Profile Edit Form State
   const [editStudioName, setEditStudioName] = useState(profile.studio_name);
@@ -330,6 +336,62 @@ export default function DashboardPage() {
 
     confetti({ particleCount: 60, spread: 60 });
     showToast(`Payment verified! Gallery unlocked for ${payment.client_name}`);
+  };
+
+  // Open Edit PIN Modal
+  const handleOpenEditPin = (proj: Project) => {
+    setEditingPinProject(proj);
+    setNewPinValue(proj.access_pin || '');
+  };
+
+  // Copy PIN to clipboard
+  const handleCopyPin = (projId: string, pin: string) => {
+    if (typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(pin);
+      setCopiedPinId(projId);
+      showToast(`PIN copied: ${pin}`);
+      setTimeout(() => setCopiedPinId(null), 2000);
+    }
+  };
+
+  // Save PIN updates to project
+  const handleSavePin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPinProject) return;
+    setIsUpdatingPin(true);
+    const cleanPin = newPinValue.trim();
+
+    try {
+      // 1. Sync to server-side projects API
+      await fetch('/api/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editingPinProject.id,
+          updates: { access_pin: cleanPin || null },
+        }),
+      });
+
+      // 2. Update local state
+      const updated = projects.map((p) =>
+        p.id === editingPinProject.id ? { ...p, access_pin: cleanPin || null } : p
+      );
+      setProjects(updated);
+      saveLocalProjects(updated);
+
+      // 3. Clear cached session unlock so next visit requires new PIN
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(`proofpix_unlocked_${editingPinProject.slug}`);
+      }
+
+      showToast(cleanPin ? `Security PIN set to: ${cleanPin}` : 'Security PIN removed (Gallery is now Public)');
+      setEditingPinProject(null);
+    } catch (err) {
+      console.error('Failed to update PIN:', err);
+      showToast('Error updating PIN. Please try again.');
+    } finally {
+      setIsUpdatingPin(false);
+    }
   };
 
   // Open Export Modal for Project
@@ -763,11 +825,40 @@ export default function DashboardPage() {
                             </span>
                           )}
 
-                          {project.access_pin && (
-                            <span className="text-[10px] font-mono text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                              PIN: {project.access_pin}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {project.access_pin ? (
+                              <div className="inline-flex items-center gap-1 text-[10px] font-mono text-gray-700 bg-gray-100 border border-gray-200 px-2 py-0.5 rounded">
+                                <Lock className="w-2.5 h-2.5 text-gray-500" />
+                                <span>PIN: {project.access_pin}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyPin(project.id, project.access_pin!)}
+                                  className="text-gray-400 hover:text-black ml-0.5 p-0.5"
+                                  title="Copy PIN"
+                                >
+                                  {copiedPinId === project.id ? (
+                                    <Check className="w-2.5 h-2.5 text-emerald-600" />
+                                  ) : (
+                                    <Copy className="w-2.5 h-2.5" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                                <Unlock className="w-2.5 h-2.5 text-emerald-600" />
+                                <span>Public (No PIN)</span>
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPin(project)}
+                              className="text-[10px] text-rose-600 hover:text-rose-700 font-semibold hover:underline flex items-center gap-0.5 cursor-pointer ml-1"
+                              title="Edit or set access PIN"
+                            >
+                              <KeyRound className="w-3 h-3" />
+                              <span>{project.access_pin ? 'Edit PIN' : 'Set PIN'}</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -1027,15 +1118,21 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-gray-700 font-medium mb-1">Client Access PIN (Optional):</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-gray-700 font-medium">Client Access PIN (Optional):</label>
+                    <span className="text-[10px] text-gray-400">4-6 Digits</span>
+                  </div>
                   <input
                     type="text"
                     maxLength={6}
                     value={accessPin}
-                    onChange={(e) => setAccessPin(e.target.value)}
-                    placeholder="e.g. 4829"
+                    onChange={(e) => setAccessPin(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                    placeholder="e.g. 4829 (leave blank for public)"
                     className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white font-mono"
                   />
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Clients must enter this PIN to access photos. Leave blank for open access.
+                  </p>
                 </div>
               </div>
 
@@ -1572,6 +1669,113 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* EDIT GALLERY PIN MODAL */}
+      {editingPinProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative space-y-5">
+            <button
+              onClick={() => setEditingPinProject(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-black hover:bg-gray-100"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 bg-rose-50 px-2.5 py-1 rounded-full">
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Gallery Security Management</span>
+              </div>
+              <h3 className="font-serif text-xl font-bold text-gray-950">
+                {editingPinProject.event_name}
+              </h3>
+              <p className="text-xs text-gray-500">
+                Client: <strong className="text-gray-800">{editingPinProject.client_name}</strong> · Slug: <code className="bg-gray-100 px-1 py-0.5 rounded font-mono text-[11px]">{editingPinProject.slug}</code>
+              </p>
+            </div>
+
+            <form onSubmit={handleSavePin} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-gray-700 font-semibold mb-1">
+                  Access Security PIN (4 to 6 Digits):
+                </label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={newPinValue}
+                    onChange={(e) => setNewPinValue(e.target.value.replace(/[^0-9a-zA-Z]/g, ''))}
+                    placeholder="e.g. 4829 or leave blank for public"
+                    className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 font-mono text-base tracking-widest outline-none focus:border-black focus:bg-white"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+                  Clients must enter this PIN before they can browse photos or select favorites. Clear this field to make the gallery public without password.
+                </p>
+              </div>
+
+              {/* Quick Preset PINs */}
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-mono text-gray-400 uppercase tracking-wider">Quick Suggestions:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {['4829', '2026', '1234', '8888'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setNewPinValue(preset)}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-mono text-[11px] rounded-lg transition-colors cursor-pointer"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setNewPinValue('')}
+                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-[11px] rounded-lg transition-colors cursor-pointer"
+                  >
+                    Remove PIN (Public)
+                  </button>
+                </div>
+              </div>
+
+              {/* Direct Test Link */}
+              <div className="bg-gray-50 border border-gray-200 p-3 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-xs font-semibold block text-gray-900">Test Gallery Lock Screen</span>
+                  <span className="text-[10px] text-gray-500">Opens in a new tab with locked state to verify PIN entry.</span>
+                </div>
+                <Link
+                  href={`/gallery/${editingPinProject.slug}?lock=1`}
+                  target="_blank"
+                  className="px-2.5 py-1.5 bg-white hover:bg-gray-100 border border-gray-200 text-gray-800 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Test Lock</span>
+                </Link>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
+                <button
+                  type="submit"
+                  disabled={isUpdatingPin}
+                  className="flex-1 py-2.5 rounded-xl bg-black hover:bg-gray-800 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>{isUpdatingPin ? 'Saving Changes...' : 'Save PIN Changes'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingPinProject(null)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-100 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

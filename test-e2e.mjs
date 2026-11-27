@@ -101,49 +101,43 @@ async function runE2ETests() {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '03-auth-redirect.png') });
 
     // -------------------------------------------------------------------------
-    // TEST 4: Google OAuth Sign-In & Studio Session
+    // TEST 4: Secure Login, Credential Verification & Google OAuth
     // -------------------------------------------------------------------------
-    console.log('\n--- 4. Testing Google Sign-In & Studio Session ---');
+    console.log('\n--- 4. Testing Secure Authentication & Login ---');
     await context.clearCookies();
     await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' });
 
-    const googleBtn = page.locator('button:has-text("Continue with Google")');
-    if (await googleBtn.isVisible()) {
-      await googleBtn.click();
-      await page.waitForTimeout(600);
+    // 4A. Verify invalid credentials rejection (security enforcement)
+    const emailInput = page.locator('input[type="email"]');
+    const passwordInput = page.locator('input[type="password"]');
+    const submitBtn = page.locator('button[type="submit"]:has-text("Sign In")');
 
-      // Verify Google Account Picker modal opens if Supabase OAuth redirects to fallback
-      const modalHeading = page.locator('h3:has-text("Sign in with Google")').first();
-      if (await modalHeading.isVisible()) {
-        record('Google Sign-in Modal Trigger', 'PASSED', 'Interactive Google Account Picker appeared');
-        await page.screenshot({ path: path.join(SCREENSHOT_DIR, '08-google-picker-modal.png') });
-        
-        // Select pre-set Google account
-        const accountOption = page.locator('button:has-text("sagarkapdi.photo@gmail.com"), button:has-text("Sagar Kapdi")').first();
-        if (await accountOption.isVisible()) {
-          await accountOption.click();
-        } else {
-          const submitGoogle = page.locator('button:has-text("Continue to Studio")');
-          await submitGoogle.click();
-        }
-        await page.waitForURL('**/dashboard', { timeout: 15000 });
-        record('Google OAuth Session Creation', 'PASSED', 'Successfully authenticated via Google into /dashboard');
-      } else {
-        // If it directly logged in or navigated
-        if (page.url().includes('/dashboard')) {
-          record('Google OAuth Direct Flow', 'PASSED', 'Redirected to /dashboard');
-        } else {
-          record('Google Sign-In Trigger', 'PASSED', 'Google OAuth triggered');
-        }
-      }
+    await emailInput.fill('admin@royalstudio.in');
+    await passwordInput.fill('wrong_password_999');
+    await submitBtn.click();
+    await page.waitForTimeout(800);
+
+    const errorAlert = page.locator('div:has-text("Invalid password"), div:has-text("Invalid email or password")');
+    if (await errorAlert.first().isVisible() && page.url().includes('/login')) {
+      record('Strict Auth Rejection on Wrong Password', 'PASSED', 'Invalid password rejected, access denied');
     } else {
-      // Fallback to demo login if Google button not on page
-      const demoLoginBtn = page.locator('button:has-text("Instant Studio Demo Login")');
-      if (await demoLoginBtn.isVisible()) {
-        await demoLoginBtn.click();
-        await page.waitForURL('**/dashboard', { timeout: 15000 });
-        record('Demo Login & Session Cookie', 'PASSED', 'Successfully authenticated into /dashboard');
-      }
+      record('Strict Auth Rejection on Wrong Password', 'FAILED', 'Failed to reject invalid password');
+    }
+
+    // 4B. Verify valid credentials login
+    const autofillBtn = page.locator('button:has-text("Autofill Verified Credentials")');
+    if (await autofillBtn.isVisible()) {
+      await autofillBtn.click();
+      await page.waitForTimeout(300);
+      await submitBtn.click();
+      await page.waitForURL('**/dashboard', { timeout: 15000 });
+      record('Credential Verification & Session Creation', 'PASSED', 'Successfully authenticated into /dashboard');
+    } else {
+      await emailInput.fill('admin@royalstudio.in');
+      await passwordInput.fill('Royal@2026');
+      await submitBtn.click();
+      await page.waitForURL('**/dashboard', { timeout: 15000 });
+      record('Credential Verification & Session Creation', 'PASSED', 'Successfully authenticated into /dashboard');
     }
 
     await page.waitForTimeout(1000);
@@ -238,11 +232,22 @@ async function runE2ETests() {
     // TEST 6: Client Gallery PIN Protection & Selection Experience
     // -------------------------------------------------------------------------
     console.log('\n--- 6. Testing Client Gallery Flow (/gallery/rohan-priya-udaipur) ---');
-    await page.goto(`${BASE_URL}/gallery/rohan-priya-udaipur`, { waitUntil: 'networkidle' });
+    // Open with ?lock=1 to guarantee testing the secure PIN gate
+    await page.goto(`${BASE_URL}/gallery/rohan-priya-udaipur?lock=1`, { waitUntil: 'networkidle' });
 
     // PIN Gate
     const pinInput = page.locator('input[placeholder*="PIN"]');
     if (await pinInput.isVisible()) {
+      // Test wrong PIN rejection first
+      await pinInput.fill('0000');
+      await page.click('button[type="submit"]');
+      await page.waitForTimeout(600);
+      const pinErrMsg = page.locator('div:has-text("Incorrect PIN")');
+      if (await pinErrMsg.isVisible()) {
+        record('Gallery PIN Gate Rejection', 'PASSED', 'Incorrect PIN rejected with error message');
+      }
+
+      // Enter valid PIN
       await pinInput.fill('4829');
       await page.click('button[type="submit"]');
       await page.waitForTimeout(1000);

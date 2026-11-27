@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   Heart, MessageSquare, Download, Share2, Lock, Unlock, X, 
   ChevronLeft, ChevronRight, Check, Send, AlertCircle, Sparkles,
-  ShieldCheck, Eye, IndianRupee, QrCode, Smartphone, Copy, ExternalLink, Globe, CreditCard
+  ShieldCheck, Eye, EyeOff, IndianRupee, QrCode, Smartphone, Copy, ExternalLink, Globe, CreditCard
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Project, Selection, DrivePhoto } from '@/types/database';
@@ -34,6 +34,7 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
   // PIN Gate State
   const [pinUnlocked, setPinUnlocked] = useState(false);
   const [enteredPin, setEnteredPin] = useState('');
+  const [showPin, setShowPin] = useState(false);
   const [pinError, setPinError] = useState(false);
 
   // Lightbox Modal State
@@ -95,13 +96,22 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
       setProject(found);
       setIsSubmitted(found.is_submitted);
 
-      const isAlreadyUnlocked = 
-        !found.access_pin || 
-        (typeof window !== 'undefined' && sessionStorage.getItem(`proofpix_unlocked_${found.slug}`) === 'true');
+      // Check if user requested forced locked test via ?lock=1 or ?test_pin=1
+      const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+      const isForceLock = searchParams?.get('lock') === '1' || searchParams?.get('test_pin') === '1';
 
-      if (isAlreadyUnlocked) {
-        setPinUnlocked(true);
+      if (isForceLock && typeof window !== 'undefined') {
+        sessionStorage.removeItem(`proofpix_unlocked_${found.slug}`);
       }
+
+      const storedUnlockToken = typeof window !== 'undefined' ? sessionStorage.getItem(`proofpix_unlocked_${found.slug}`) : null;
+      const cleanTargetPin = found.access_pin?.trim();
+
+      const isAlreadyUnlocked = 
+        !isForceLock && 
+        (!cleanTargetPin || storedUnlockToken === cleanTargetPin);
+
+      setPinUnlocked(Boolean(isAlreadyUnlocked));
 
       // 1. Fetch selections from session-backed database API with local fallback
       fetch(`/api/gallery/selections?projectId=${encodeURIComponent(found.id)}`)
@@ -207,16 +217,28 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
     if (!project) return;
     
     const targetPin = project.access_pin?.trim();
-    if (targetPin && enteredPin.trim() === targetPin) {
+    if (!targetPin || enteredPin.trim() === targetPin) {
       setPinUnlocked(true);
       setPinError(false);
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem(`proofpix_unlocked_${project.slug}`, 'true');
+        sessionStorage.setItem(`proofpix_unlocked_${project.slug}`, targetPin || 'unlocked');
       }
       confetti({ particleCount: 50, spread: 60 });
+      showToast('Gallery unlocked successfully ✨');
     } else {
       setPinError(true);
     }
+  };
+
+  // Lock Gallery (for privacy / testing)
+  const handleLockGallery = () => {
+    if (typeof window !== 'undefined' && project) {
+      sessionStorage.removeItem(`proofpix_unlocked_${project.slug}`);
+    }
+    setPinUnlocked(false);
+    setEnteredPin('');
+    setPinError(false);
+    showToast('Gallery locked. Access PIN required.');
   };
 
   // Toggle Heart Selection
@@ -458,48 +480,73 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
   if (!pinUnlocked) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 p-8 shadow-sm text-center space-y-6">
-          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100">
-            <Lock className="w-6 h-6" />
+        <div className="w-full max-w-sm bg-white rounded-3xl border border-gray-200 p-8 shadow-xl text-center space-y-6">
+          <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100 shadow-xs">
+            <Lock className="w-7 h-7" />
           </div>
 
-          <div className="space-y-1">
-            <span className="text-[10px] font-mono uppercase text-gray-400 tracking-wider">Private Delivery</span>
-            <h2 className="font-serif text-2xl font-bold text-gray-950">{project.event_name}</h2>
-            <p className="text-xs text-gray-500">
-              Please enter the 4-digit access PIN provided by your photographer.
+          <div className="space-y-1.5">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full font-semibold">
+              Private Client Delivery
+            </span>
+            <h2 className="font-serif text-2xl font-bold text-gray-950 tracking-tight">{project.event_name}</h2>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              This gallery is privately protected. Please enter the security PIN provided by <strong>{project.watermark_text || 'your studio'}</strong>.
             </p>
           </div>
 
           <form onSubmit={handlePinSubmit} className="space-y-4 text-xs">
             {pinError && (
-              <div className="p-2.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs">
-                Incorrect PIN. Please verify with your photographer.
+              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                <span>Incorrect PIN. Please verify and try again.</span>
               </div>
             )}
 
-            <input
-              type="password"
-              maxLength={6}
-              autoFocus
-              placeholder="Enter PIN"
-              value={enteredPin}
-              onChange={(e) => setEnteredPin(e.target.value)}
-              className="w-full text-center tracking-[0.3em] font-mono text-lg py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-black focus:bg-white"
-            />
+            <div className="relative">
+              <input
+                type={showPin ? 'text' : 'password'}
+                maxLength={6}
+                autoFocus
+                placeholder="Enter Access PIN"
+                value={enteredPin}
+                onChange={(e) => {
+                  setEnteredPin(e.target.value);
+                  if (pinError) setPinError(false);
+                }}
+                className="w-full text-center tracking-[0.3em] font-mono text-xl py-3 px-10 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-black focus:bg-white text-gray-900"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPin(!showPin)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1"
+                tabIndex={-1}
+              >
+                {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-black hover:bg-gray-800 text-white font-semibold text-xs transition-colors"
+              className="w-full py-3 rounded-xl bg-black hover:bg-gray-800 text-white font-semibold text-xs transition-colors shadow-sm cursor-pointer active:scale-[0.99]"
             >
               Access Client Gallery
             </button>
 
-            {project.access_pin && (
-              <p className="text-[10px] text-gray-400 font-mono">
-                PIN Hint for Demo: <strong>{project.access_pin}</strong>
-              </p>
-            )}
+            <div className="pt-2 border-t border-gray-100 flex flex-col items-center gap-1.5">
+              <span className="text-[11px] text-gray-400">Need your access PIN?</span>
+              <a
+                href={`https://wa.me/${project.studio_whatsapp || '919876543210'}?text=${encodeURIComponent(
+                  `Hello! Please share the access PIN for the gallery: ${project.event_name}`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline"
+              >
+                <Smartphone className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Request PIN from Studio on WhatsApp</span>
+              </a>
+            </div>
           </form>
         </div>
       </div>
@@ -626,6 +673,19 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
                 </>
               )}
             </button>
+
+            {/* Gallery Lock Button (for security / testing) */}
+            {project.access_pin && (
+              <button
+                type="button"
+                onClick={handleLockGallery}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 hover:bg-gray-100 text-gray-700 text-xs font-medium transition-colors cursor-pointer"
+                title="Lock gallery and return to PIN security screen"
+              >
+                <Lock className="w-3.5 h-3.5 text-gray-500" />
+                <span className="hidden sm:inline">Lock Gallery</span>
+              </button>
+            )}
           </div>
         </div>
       </header>

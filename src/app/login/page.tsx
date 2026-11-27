@@ -5,10 +5,17 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { 
   Sparkles, ArrowRight, Lock, Mail, Smartphone, Building, 
-  IndianRupee, CheckCircle2, ShieldCheck, UserCheck, X 
+  IndianRupee, CheckCircle2, ShieldCheck, UserCheck, X, Eye, EyeOff, KeyRound, AlertTriangle
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { saveLocalProfile, INITIAL_PROFILE, addLocalAuditLog } from '@/lib/mockStore';
+import { 
+  saveLocalProfile, 
+  INITIAL_PROFILE, 
+  addLocalAuditLog,
+  registerLocalUser,
+  verifyLocalCredentials,
+  INITIAL_USERS
+} from '@/lib/mockStore';
 import { Profile } from '@/types/database';
 
 export default function LoginPage() {
@@ -16,12 +23,14 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [studioName, setStudioName] = useState('The Royal Frames Studio');
   const [whatsapp, setWhatsapp] = useState('919876543210');
   const [upiId, setUpiId] = useState('royalstudio@oksbi');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   // Google Account Chooser Modal State
   const [isGoogleModalOpen, setIsGoogleModalOpen] = useState(false);
@@ -135,73 +144,168 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
+    setSuccessMsg(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setErrorMsg('Please enter both email and password.');
+      setLoading(false);
+      return;
+    }
 
     try {
-      const supabase = createClient();
-
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              studio_name: studioName,
-              whatsapp_number: whatsapp,
-              upi_id: upiId,
+        // Sign-up validation
+        if (cleanPassword.length < 6) {
+          setErrorMsg('Password must be at least 6 characters long.');
+          setLoading(false);
+          return;
+        }
+
+        if (!studioName.trim()) {
+          setErrorMsg('Please enter your studio or brand name.');
+          setLoading(false);
+          return;
+        }
+
+        // Try Supabase auth first if available
+        try {
+          const supabase = createClient();
+          const { error } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: cleanPassword,
+            options: {
+              data: {
+                studio_name: studioName,
+                whatsapp_number: whatsapp,
+                upi_id: upiId,
+              },
             },
-          },
+          });
+          if (error && !error.message.includes('fetch')) {
+            console.warn('Supabase sign-up message:', error.message);
+          }
+        } catch {
+          // Supabase optional
+        }
+
+        const regResult = registerLocalUser({
+          email: cleanEmail,
+          password: cleanPassword,
+          studio_name: studioName,
+          whatsapp_number: whatsapp,
+          upi_id: upiId,
         });
-        if (error) console.warn('Supabase auth fallback:', error.message);
+
+        if (!regResult.success || !regResult.user) {
+          setErrorMsg(regResult.error || 'Failed to create studio account. Please try again.');
+          setLoading(false);
+          return;
+        }
+
+        const newProfile: Profile = {
+          id: regResult.user.id,
+          full_name: studioName.replace('Studio', '').trim() || 'Studio Owner',
+          email: regResult.user.email,
+          studio_name: regResult.user.studio_name,
+          whatsapp_number: regResult.user.whatsapp_number,
+          upi_id: regResult.user.upi_id || 'royalstudio@oksbi',
+          auth_provider: 'email',
+          avatar_url: regResult.user.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+          default_watermark: `${studioName} · ProofPix Protected`,
+          default_pin: '4829',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        saveLocalProfile(newProfile);
+
+        if (typeof document !== 'undefined') {
+          document.cookie = `proofpix_session=user_${regResult.user.id}_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
+        }
+
+        addLocalAuditLog({
+          email: cleanEmail,
+          studio_name: studioName,
+          action: 'SIGNUP',
+          ip_address: 'Verified Studio IP',
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Browser Client',
+          metadata: { provider: 'credentials' },
+        });
+
+        router.push('/dashboard');
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+        // Sign-in flow: Strictly verify credentials!
+        let supabaseSuccess = false;
+        try {
+          const supabase = createClient();
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: cleanPassword,
+          });
+          if (!error && data?.user) {
+            supabaseSuccess = true;
+          }
+        } catch {
+          // Fall back to verified local store
+        }
+
+        const credCheck = verifyLocalCredentials(cleanEmail, cleanPassword);
+
+        if (!supabaseSuccess && !credCheck.success) {
+          setErrorMsg(credCheck.error || 'Invalid email or password. Please verify your credentials or create a new account.');
+          setLoading(false);
+          return; // STOP! DO NOT set cookie, DO NOT redirect!
+        }
+
+        const user = credCheck.user;
+        const activeProfile: Profile = {
+          id: user?.id || 'photographer-active',
+          full_name: user?.studio_name.replace('Studio', '').trim() || 'Studio Owner',
+          email: cleanEmail,
+          studio_name: user?.studio_name || 'The Royal Frames Studio',
+          whatsapp_number: user?.whatsapp_number || whatsapp || '919876543210',
+          upi_id: user?.upi_id || upiId || 'royalstudio@oksbi',
+          auth_provider: 'email',
+          avatar_url: user?.avatar_url || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+          default_watermark: `${user?.studio_name || studioName || 'The Royal Frames Studio'} · ProofPix Protected`,
+          default_pin: '4829',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        saveLocalProfile(activeProfile);
+
+        if (typeof document !== 'undefined') {
+          document.cookie = `proofpix_session=user_${user?.id || 'active'}_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
+        }
+
+        addLocalAuditLog({
+          email: cleanEmail,
+          studio_name: activeProfile.studio_name,
+          action: 'LOGIN',
+          ip_address: 'Verified Studio IP',
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Browser Client',
+          metadata: { provider: 'credentials' },
         });
-        if (error) console.warn('Supabase auth fallback:', error.message);
+
+        router.push('/dashboard');
       }
-
-      const activeProfile: Profile = {
-        id: 'photographer-active',
-        full_name: studioName.replace('Studio', '').trim() || 'Studio Owner',
-        email: email || 'photographer@studio.com',
-        studio_name: studioName || 'The Royal Frames Studio',
-        whatsapp_number: whatsapp || '919876543210',
-        upi_id: upiId || 'royalstudio@oksbi',
-        auth_provider: 'email',
-        avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-        default_watermark: `${studioName || 'The Royal Frames Studio'} · ProofPix Protected`,
-        default_pin: '4829',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      saveLocalProfile(activeProfile);
-
-      if (typeof document !== 'undefined') {
-        document.cookie = `proofpix_session=photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
-      }
-
-      router.push('/dashboard');
     } catch (err: any) {
-      console.warn('Auth exception, continuing to dashboard:', err);
-      saveLocalProfile(INITIAL_PROFILE);
-
-      if (typeof document !== 'undefined') {
-        document.cookie = `proofpix_session=photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
-      }
-
-      router.push('/dashboard');
+      console.error('Authentication Error:', err);
+      setErrorMsg('An unexpected authentication error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickDemoLogin = () => {
-    saveLocalProfile(INITIAL_PROFILE);
-    if (typeof document !== 'undefined') {
-      document.cookie = `proofpix_session=demo_photographer_${Date.now()}; path=/; max-age=2592000; SameSite=Lax`;
-    }
-    router.push('/dashboard');
+  const handleFillDemoCredentials = () => {
+    setIsSignUp(false);
+    setEmail('admin@royalstudio.in');
+    setPassword('Royal@2026');
+    setErrorMsg(null);
   };
 
   return (
@@ -259,8 +363,16 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4 text-xs">
             {errorMsg && (
-              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs">
-                {errorMsg}
+              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl text-xs flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="p-3 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-xs flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <span>{successMsg}</span>
               </div>
             )}
 
@@ -328,17 +440,30 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-gray-700 font-medium mb-1">Password</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="text-gray-700 font-medium">Password</label>
+                {isSignUp && (
+                  <span className="text-[10px] text-gray-400">Min 6 characters</span>
+                )}
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white"
+                  className="w-full pl-9 pr-10 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white"
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -347,7 +472,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2.5 px-4 rounded-xl bg-black hover:bg-gray-800 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
             >
-              <span>{loading ? 'Authenticating...' : isSignUp ? 'Create Studio Account' : 'Sign In with Credentials'}</span>
+              <span>{loading ? 'Verifying Credentials...' : isSignUp ? 'Create Studio Account' : 'Sign In with Credentials'}</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </form>
@@ -355,28 +480,47 @@ export default function LoginPage() {
           <div className="text-center pt-1 border-t border-gray-100">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setErrorMsg(null);
+                setSuccessMsg(null);
+              }}
               className="text-xs text-rose-600 hover:underline font-medium cursor-pointer"
             >
               {isSignUp ? 'Already have a studio account? Sign In' : "Don't have an account? Create Studio Account"}
             </button>
           </div>
 
-          {/* Quick Demo Evaluation Access */}
-          <div className="bg-gray-50 border border-gray-200 p-3.5 rounded-xl space-y-1.5">
+          {/* Verified Studio Test Credentials */}
+          <div className="bg-gray-50 border border-gray-200 p-3.5 rounded-xl space-y-2">
             <div className="flex items-center justify-between text-[11px] font-semibold text-gray-700">
-              <span className="flex items-center gap-1 text-gray-900">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Quick Evaluation</span>
+              <span className="flex items-center gap-1.5 text-gray-900">
+                <KeyRound className="w-3.5 h-3.5 text-rose-600" />
+                <span>Verified Studio Access</span>
               </span>
-              <span className="text-[10px] text-gray-500 font-mono">Sample Royal Studio</span>
+              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-mono font-medium">
+                Strict Auth
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Login requires credential verification. You can register your own studio account or test with the verified credentials below:
+            </p>
+            <div className="bg-white p-2.5 rounded-lg border border-gray-200 space-y-1 font-mono text-[11px]">
+              <div className="flex justify-between items-center text-gray-700">
+                <span className="text-gray-400">Email:</span>
+                <span className="font-semibold select-all text-gray-900">admin@royalstudio.in</span>
+              </div>
+              <div className="flex justify-between items-center text-gray-700">
+                <span className="text-gray-400">Password:</span>
+                <span className="font-semibold select-all text-gray-900">Royal@2026</span>
+              </div>
             </div>
             <button
               type="button"
-              onClick={handleQuickDemoLogin}
-              className="w-full py-1.5 px-3 rounded-lg border border-gray-300 hover:bg-white text-gray-700 text-[11px] font-medium transition-colors text-center"
+              onClick={handleFillDemoCredentials}
+              className="w-full py-1.5 px-3 rounded-lg border border-gray-300 hover:bg-white text-gray-800 text-[11px] font-semibold transition-colors text-center cursor-pointer active:scale-[0.99]"
             >
-              1-Click Instant Demo Evaluation
+              Autofill Verified Credentials
             </button>
           </div>
         </div>

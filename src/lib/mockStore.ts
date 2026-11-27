@@ -186,6 +186,146 @@ const STORAGE_KEY_SELECTIONS = 'proofpix_demo_selections';
 const STORAGE_KEY_PROFILE = 'proofpix_demo_profile';
 const STORAGE_KEY_AUDIT = 'proofpix_audit_logs';
 const STORAGE_KEY_PAYMENTS = 'proofpix_payments';
+const STORAGE_KEY_USERS = 'proofpix_registered_users';
+
+export interface RegisteredUser {
+  id: string;
+  email: string;
+  password: string;
+  studio_name: string;
+  whatsapp_number: string;
+  upi_id?: string;
+  avatar_url?: string;
+  created_at: string;
+}
+
+export const INITIAL_USERS: RegisteredUser[] = [
+  {
+    id: 'user-admin',
+    email: 'admin@royalstudio.in',
+    password: 'Royal@2026',
+    studio_name: 'The Royal Frames Studio',
+    whatsapp_number: '919876543210',
+    upi_id: 'royalstudio@oksbi',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+    created_at: new Date(Date.now() - 86400000 * 30).toISOString(),
+  },
+  {
+    id: 'user-sagar',
+    email: 'sagar.kapdi@gmail.com',
+    password: 'ProofPix@2026',
+    studio_name: 'The Royal Frames Studio',
+    whatsapp_number: '919876543210',
+    upi_id: 'royalstudio@oksbi',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    created_at: new Date(Date.now() - 86400000 * 15).toISOString(),
+  },
+];
+
+export function getRegisteredUsers(): RegisteredUser[] {
+  if (typeof window === 'undefined') return INITIAL_USERS;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_USERS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(INITIAL_USERS));
+      return INITIAL_USERS;
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_USERS;
+  } catch {
+    return INITIAL_USERS;
+  }
+}
+
+export function registerLocalUser(userData: {
+  email: string;
+  password: string;
+  studio_name: string;
+  whatsapp_number: string;
+  upi_id?: string;
+}): { success: boolean; error?: string; user?: RegisteredUser } {
+  const cleanEmail = userData.email.trim().toLowerCase();
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    return { success: false, error: 'Please enter a valid email address.' };
+  }
+  if (!userData.password || userData.password.length < 6) {
+    return { success: false, error: 'Password must be at least 6 characters long.' };
+  }
+  if (!userData.studio_name || userData.studio_name.trim().length < 2) {
+    return { success: false, error: 'Please enter a valid studio or brand name.' };
+  }
+
+  const users = getRegisteredUsers();
+  const existing = users.find((u) => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    return { success: false, error: 'An account with this email already exists. Please sign in.' };
+  }
+
+  const newUser: RegisteredUser = {
+    id: `user-${Date.now()}`,
+    email: cleanEmail,
+    password: userData.password,
+    studio_name: userData.studio_name.trim(),
+    whatsapp_number: userData.whatsapp_number.trim() || '919876543210',
+    upi_id: userData.upi_id?.trim() || '',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+    created_at: new Date().toISOString(),
+  };
+
+  const updatedUsers = [newUser, ...users];
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_USERS, JSON.stringify(updatedUsers));
+  }
+
+  return { success: true, user: newUser };
+}
+
+export function verifyLocalCredentials(
+  email: string,
+  password: string
+): { success: boolean; user?: RegisteredUser; error?: string } {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail || !password) {
+    return { success: false, error: 'Email and password are required.' };
+  }
+
+  const users = getRegisteredUsers();
+  const found = users.find((u) => u.email.toLowerCase() === cleanEmail);
+
+  if (!found) {
+    // Check if user is logging in with initial profile email
+    if (cleanEmail === INITIAL_PROFILE.email?.toLowerCase()) {
+      if (password === 'ProofPix@2026' || password === 'Royal@2026') {
+        return {
+          success: true,
+          user: {
+            id: INITIAL_PROFILE.id,
+            email: INITIAL_PROFILE.email || cleanEmail,
+            password: password,
+            studio_name: INITIAL_PROFILE.studio_name,
+            whatsapp_number: INITIAL_PROFILE.whatsapp_number,
+            upi_id: INITIAL_PROFILE.upi_id || undefined,
+            avatar_url: INITIAL_PROFILE.avatar_url || undefined,
+            created_at: new Date().toISOString(),
+          },
+        };
+      }
+    }
+    return {
+      success: false,
+      error: 'No account found with this email. Please check your email or click "Create Studio Account".',
+    };
+  }
+
+  if (found.password !== password) {
+    return {
+      success: false,
+      error: 'Invalid password. Please check your credentials and try again.',
+    };
+  }
+
+  return { success: true, user: found };
+}
 
 export function getLocalProfile(): Profile {
   if (typeof window === 'undefined') return INITIAL_PROFILE;
