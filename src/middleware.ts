@@ -8,7 +8,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith('/dashboard')) {
+  if (pathname.startsWith('/dashboard') || pathname.startsWith('/profile')) {
     const sessionCookie = request.cookies.get('proofpix_session')?.value;
     const sbAccessToken = request.cookies.get('sb-access-token')?.value;
     const sbAuthToken = request.cookies.get('supabase-auth-token')?.value;
@@ -26,5 +26,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: ['/dashboard/:path*', '/profile/:path*'],
 };

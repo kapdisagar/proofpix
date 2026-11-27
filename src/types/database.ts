@@ -1,9 +1,19 @@
 export interface Profile {
   id: string;
+  email?: string;
+  full_name?: string;
   studio_name: string;
   whatsapp_number: string;
   upi_id?: string | null;
   avatar_url?: string | null;
+  auth_provider?: 'google' | 'email' | 'demo';
+  google_id?: string | null;
+  bio?: string | null;
+  city?: string | null;
+  instagram_handle?: string | null;
+  website_url?: string | null;
+  default_watermark?: string | null;
+  default_pin?: string | null;
   created_at?: string;
   updated_at?: string;
 }

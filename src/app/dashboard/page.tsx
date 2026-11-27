@@ -7,7 +7,8 @@ import {
   Plus, Camera, Lock, Unlock, Copy, Check, Download, Share2, 
   Trash2, ExternalLink, HardDrive, MessageSquare, Smartphone, 
   Sparkles, Sliders, AlertCircle, FileCode, CheckCircle2, X, RefreshCw,
-  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode, Zap
+  Edit3, IndianRupee, Send, ShieldCheck, LogOut, Activity, UserCheck, Crown, QrCode, Zap,
+  Settings, User
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { 
@@ -509,27 +510,29 @@ export default function DashboardPage() {
               <span className="hidden sm:inline">Audit Logs</span>
             </button>
 
-            {/* Studio Profile Trigger Pill */}
-            <button
-              onClick={() => {
-                setEditStudioName(profile.studio_name);
-                setEditWhatsapp(profile.whatsapp_number);
-                setEditUpiId(profile.upi_id || '');
-                setIsProfileOpen(true);
-              }}
-              className="flex items-center gap-2 p-1.5 px-3 rounded-xl hover:bg-gray-100 text-left transition-colors border border-transparent hover:border-gray-200"
-              title="Click to edit Studio details"
+            {/* Studio Profile & Settings Link */}
+            <Link
+              href="/profile"
+              className="flex items-center gap-2 p-1.5 px-3 rounded-xl hover:bg-gray-100 text-left transition-colors border border-gray-200 bg-white shadow-2xs group"
+              title="Manage Studio Profile, Google Account & UPI"
             >
-              <div className="hidden sm:flex flex-col text-right">
-                <span className="text-xs font-semibold text-gray-900 flex items-center gap-1 justify-end">
+              <div className="w-7 h-7 rounded-full overflow-hidden bg-gray-200 border border-gray-300 shrink-0">
+                <img
+                  src={profile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'}
+                  alt={profile.studio_name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <div className="hidden sm:flex flex-col text-left">
+                <span className="text-xs font-semibold text-gray-900 group-hover:text-rose-600 transition-colors flex items-center gap-1">
                   <span>{profile.studio_name}</span>
-                  <Edit3 className="w-3 h-3 text-gray-400" />
+                  <Settings className="w-3 h-3 text-gray-400 group-hover:text-rose-500" />
                 </span>
-                <span className="text-[10px] text-gray-500 font-mono">
-                  UPI: {profile.upi_id || 'Not set'}
+                <span className="text-[10px] text-gray-500 font-mono truncate max-w-[120px]">
+                  {profile.email || 'Google Connected'}
                 </span>
               </div>
-            </button>
+            </Link>
 
             {/* New Gallery Button */}
             <button

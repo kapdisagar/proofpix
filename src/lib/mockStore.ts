@@ -2,10 +2,20 @@ import { Profile, Project, Selection, AuditLog, Payment, Subscription } from '@/
 
 export const INITIAL_PROFILE: Profile = {
   id: 'photographer-demo-1',
+  full_name: 'Sagar Kapdi',
+  email: 'sagar.kapdi@gmail.com',
   studio_name: 'The Royal Frames Studio',
   whatsapp_number: '919876543210',
   upi_id: 'royalstudio@oksbi',
   avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+  auth_provider: 'google',
+  google_id: 'google-oauth2-108291048291',
+  bio: 'Luxury Destination Wedding & Pre-wedding Cinematography across Udaipur, Jaipur & Mumbai.',
+  city: 'Udaipur, Rajasthan',
+  instagram_handle: '@royalstudio.in',
+  website_url: 'https://royalstudio.in',
+  default_watermark: 'The Royal Frames Studio · Proof Copy',
+  default_pin: '4829',
 };
 
 export const INITIAL_PROJECTS: Project[] = [
