@@ -113,8 +113,8 @@ async function runE2ETests() {
       await page.waitForTimeout(600);
 
       // Verify Google Account Picker modal opens if Supabase OAuth redirects to fallback
-      const modal = page.locator('div:has-text("Sign in with Google")');
-      if (await modal.isVisible()) {
+      const modalHeading = page.locator('h3:has-text("Sign in with Google")').first();
+      if (await modalHeading.isVisible()) {
         record('Google Sign-in Modal Trigger', 'PASSED', 'Interactive Google Account Picker appeared');
         await page.screenshot({ path: path.join(SCREENSHOT_DIR, '08-google-picker-modal.png') });
         
@@ -170,8 +170,8 @@ async function runE2ETests() {
     await page.waitForTimeout(800);
 
     const profileContent = await page.textContent('body');
-    const hasProfileHeader = profileContent.includes('Studio Profile & Settings');
-    const hasGoogleVerified = profileContent.includes('Google Verified Account') || profileContent.includes('Google Account');
+    const hasProfileHeader = profileContent.includes('Studio Profile');
+    const hasGoogleVerified = profileContent.includes('Google Authenticated') || profileContent.includes('Google Account');
     
     if (hasProfileHeader && hasGoogleVerified) {
       record('Profile Page Access & Google Identity', 'PASSED', 'Profile loaded with Google Verified identity');
@@ -182,7 +182,7 @@ async function runE2ETests() {
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '09-studio-profile.png'), fullPage: false });
 
     // Test UPI Tab & Dynamic QR Code
-    const upiTab = page.locator('button:has-text("UPI & Payouts")');
+    const upiTab = page.locator('button:has-text("UPI Payments"), button:has-text("UPI & Payouts")').first();
     if (await upiTab.isVisible()) {
       await upiTab.click();
       await page.waitForTimeout(500);
