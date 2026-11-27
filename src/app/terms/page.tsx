@@ -40,11 +40,27 @@ export default function TermsPage() {
 
           <h2 className="font-bold text-sm text-gray-900 pt-2">5. Governing Law & Jurisdiction</h2>
           <p>
-            These terms shall be governed by and construed in accordance with the laws of India, and any disputes shall be subject to the jurisdiction of the competent courts in India.
+            These terms shall be governed by and construed in accordance with the laws of India, including the Information Technology Act, 2000, and the Digital Personal Data Protection (DPDP) Act, 2023. Any disputes arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the competent courts in Bengaluru, India.
           </p>
 
-          <div className="pt-6 border-t border-gray-100 text-[11px] text-gray-500">
-            Questions regarding our Terms? Contact us at <strong className="text-gray-900">support@proofpix.in</strong>.
+          <h2 className="font-bold text-sm text-gray-900 pt-2">6. Grievance Redressal Officer</h2>
+          <p>
+            In accordance with the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021, the contact details of the Grievance Officer are:
+          </p>
+          <div className="p-3 bg-gray-50 rounded-xl border border-gray-200 text-[11px] font-mono space-y-0.5">
+            <div><strong>Name:</strong> Sagar Kapdi (Compliance & Grievance Officer)</div>
+            <div><strong>Company:</strong> ProofPix Technologies Private Limited</div>
+            <div><strong>Email:</strong> grievance@proofpix.in</div>
+            <div><strong>Address:</strong> Block B, Tech Innovation Hub, Indiranagar, Bengaluru, Karnataka 560038, India</div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
+            <div>Questions regarding our Terms? Contact <strong className="text-gray-900">support@proofpix.in</strong></div>
+            <div className="flex gap-3">
+              <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
+              <Link href="/refund-policy" className="hover:underline">Refund Policy</Link>
+              <Link href="/shipping" className="hover:underline">Shipping Policy</Link>
+            </div>
           </div>
         </div>
       </div>

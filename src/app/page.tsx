@@ -664,6 +664,60 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* FREQUENTLY ASKED QUESTIONS (FAQ) FOR COMMERCIAL CLARITY */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 border-t border-gray-200">
+        <div className="text-center space-y-2 mb-10">
+          <span className="text-xs font-mono font-semibold text-rose-600 uppercase tracking-wider">
+            Everything You Need to Know
+          </span>
+          <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-950">
+            Frequently Asked Questions
+          </h2>
+          <p className="text-xs text-gray-500">
+            Transparent answers on Google Drive sync, Razorpay/PayPal payouts, and client security.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {[
+            {
+              q: 'How does Zero-Storage work with Google Drive?',
+              a: 'ProofPix never copies or stores your gigabytes of raw photos on our servers. When you paste your public Google Drive folder link, our high-speed edge proxy generates optimized thumbnails on-the-fly with your custom watermark. You keep 100% control of your files in Google Drive and pay ₹0 for hosting storage.'
+            },
+            {
+              q: 'How do I collect payments directly into my own Razorpay, PayPal, or UPI account?',
+              a: 'In your Studio Profile, you can enter your Razorpay Payment Link, PayPal.me link, and Bank UPI ID. When clients open their gallery, they see an instant checkout modal with your exact shoot balance. 100% of their payment goes directly to your own account with 0% platform fee.'
+            },
+            {
+              q: 'Can clients view and select photos on their mobile phones?',
+              a: 'Yes, ProofPix is 100% mobile-first. Clients can swipe through photos, tap the heart icon to select favorites, leave retouching notes for the album designer, and send a 1-click summary directly to your studio WhatsApp.'
+            },
+            {
+              q: 'How does Adobe Lightroom export work?',
+              a: 'Once clients submit their favorite photos, ProofPix automatically generates 1-click Windows Batch (.bat) and macOS Bash (.sh) filter scripts. Running the script inside your photo folder automatically copies all selected files into a "Selected_Photos" subfolder ready for Lightroom import.'
+            },
+            {
+              q: 'Is there a refund policy?',
+              a: 'Yes. We offer an unconditional 7-day money-back guarantee on all Monthly Pro and Annual Pass subscriptions. If you are not completely satisfied, simply reach out to support@proofpix.in for a full refund.'
+            },
+            {
+              q: 'Are client photos protected before they pay their final balance?',
+              a: 'Yes. Every gallery features server-side indelible SVG vector watermarks and HTTP 403 download locks. Raw high-resolution files cannot be inspected or downloaded until you mark the project cleared or the client pays their balance.'
+            }
+          ].map((item, idx) => (
+            <div key={idx} className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2 shadow-xs">
+              <h3 className="font-semibold text-sm text-gray-950 flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center text-xs font-mono font-bold shrink-0">?</span>
+                <span>{item.q}</span>
+              </h3>
+              <p className="text-xs text-gray-600 pl-7 leading-relaxed">
+                {item.a}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* UPI QR PAYMENT MODAL (NO NAME, NO RAW UPI ID - PURE CLEAN QR) */}
       {upgradePlan && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
@@ -826,6 +880,7 @@ export default function HomePage() {
               <Link href="/terms" className="hover:text-gray-900 transition-colors">Terms & Conditions</Link>
               <Link href="/privacy" className="hover:text-gray-900 transition-colors">Privacy Policy</Link>
               <Link href="/refund-policy" className="hover:text-gray-900 transition-colors">Refund & Cancellation</Link>
+              <Link href="/shipping" className="hover:text-gray-900 transition-colors">Shipping & Delivery</Link>
               <Link href="/contact" className="hover:text-gray-900 transition-colors">Contact Us</Link>
             </div>
 

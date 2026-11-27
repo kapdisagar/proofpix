@@ -38,10 +38,24 @@ export default function PrivacyPage() {
             ProofPix follows standard log file procedures. The information gathered includes internet protocol (IP) addresses, browser type, and timestamps to prevent fraudulent unlocks and unauthorized account tampering.
           </p>
 
-          <h2 className="font-bold text-sm text-gray-900 pt-2">5. Contact Information</h2>
+          <h2 className="font-bold text-sm text-gray-900 pt-2">5. User Rights & Data Portability (DPDP Act, 2023)</h2>
           <p>
-            If you have questions or require more information about our Privacy Policy, contact us at <strong className="text-gray-900">privacy@proofpix.in</strong>.
+            Under the Digital Personal Data Protection Act, 2023, you have the right to access, correct, export, or request deletion of your personal studio data and audit records at any time from your studio profile or by writing to our compliance officer.
           </p>
+
+          <h2 className="font-bold text-sm text-gray-900 pt-2">6. Grievance Officer & Contact</h2>
+          <p>
+            If you have questions regarding this Privacy Policy or data processing, contact our Grievance Officer at <strong className="text-gray-900">grievance@proofpix.in</strong> or <strong className="text-gray-900">privacy@proofpix.in</strong>. Registered Office: ProofPix Technologies Private Limited, Indiranagar, Bengaluru, Karnataka 560038, India.
+          </p>
+
+          <div className="pt-6 border-t border-gray-100 flex flex-wrap items-center justify-between gap-3 text-[11px] text-gray-500">
+            <div>ProofPix Data Protection Desk</div>
+            <div className="flex gap-3">
+              <Link href="/terms" className="hover:underline">Terms of Service</Link>
+              <Link href="/refund-policy" className="hover:underline">Refund Policy</Link>
+              <Link href="/shipping" className="hover:underline">Shipping Policy</Link>
+            </div>
+          </div>
         </div>
       </div>
     </div>

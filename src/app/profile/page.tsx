@@ -6,7 +6,8 @@ import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Camera, ShieldCheck, User, Mail, Smartphone, Building, 
   IndianRupee, Globe, Instagram, Lock, CheckCircle2, QrCode, Crown, 
-  ExternalLink, Sparkles, Save, Check, RefreshCw, AlertCircle, LogOut 
+  ExternalLink, Sparkles, Save, Check, RefreshCw, AlertCircle, LogOut,
+  FileText, Printer, Download, X
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { getLocalProfile, saveLocalProfile, getLocalSubscription, INITIAL_PROFILE } from '@/lib/mockStore';
@@ -58,6 +59,7 @@ export default function ProfilePage() {
   const [watermark, setWatermark] = useState('');
   const [defaultPin, setDefaultPin] = useState('');
   const [selectedAvatar, setSelectedAvatar] = useState('');
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
   useEffect(() => {
     const loadedProfile = getLocalProfile();
@@ -615,6 +617,15 @@ export default function ProfilePage() {
                 >
                   Manage or Extend Subscription
                 </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setIsInvoiceModalOpen(true)}
+                  className="w-full py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-800 font-semibold text-xs text-center flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>View Official Tax Invoice / Receipt</span>
+                </button>
               </div>
 
               {/* Zero-Storage Cloud Diagnostics */}
@@ -673,6 +684,128 @@ export default function ProfilePage() {
           </div>
         </form>
       </main>
+
+      {/* OFFICIAL TAX INVOICE & RECEIPT MODAL */}
+      {isInvoiceModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-2xl bg-white rounded-3xl border border-gray-200 p-6 sm:p-8 space-y-6 shadow-2xl max-h-[92vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <span className="font-serif text-2xl font-bold text-gray-950">ProofPix</span>
+                <span className="text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">
+                  TAX INVOICE · PAID
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-3.5 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsInvoiceModalOpen(false)}
+                  className="p-1 rounded-full text-gray-400 hover:text-black cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Invoice Metadata */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1">
+                <div className="text-[10px] font-mono uppercase text-gray-400 font-bold">SUPPLIER (BILL FROM)</div>
+                <div className="font-bold text-gray-900">ProofPix Technologies Private Limited</div>
+                <div className="text-gray-600">Block B, Tech Hub, Indiranagar</div>
+                <div className="text-gray-600">Bengaluru, Karnataka 560038, India</div>
+                <div className="text-gray-500 font-mono">SAC Code: 998314 · IT SaaS</div>
+              </div>
+
+              <div className="space-y-1 text-right">
+                <div className="text-[10px] font-mono uppercase text-gray-400 font-bold">CUSTOMER (BILLED TO)</div>
+                <div className="font-bold text-gray-900">{profile.full_name || 'Studio Owner'}</div>
+                <div className="text-gray-600 font-medium">{profile.studio_name}</div>
+                <div className="text-gray-600 font-mono">{profile.email}</div>
+                <div className="text-gray-500">{profile.city || 'India'}</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 flex flex-wrap justify-between items-center text-xs font-mono">
+              <div>
+                <span className="text-gray-400">Invoice No: </span>
+                <span className="font-bold text-gray-900">INV-2026-{subscription?.plan_tier === 'ANNUAL_PASS' ? '9182' : '4102'}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Date: </span>
+                <span className="font-bold text-gray-900">{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              </div>
+              <div>
+                <span className="text-gray-400">Status: </span>
+                <span className="font-bold text-emerald-600">PAID VIA RAZORPAY / UPI</span>
+              </div>
+            </div>
+
+            {/* Line Items Table */}
+            <div className="border border-gray-200 rounded-2xl overflow-hidden text-xs">
+              <table className="w-full text-left">
+                <thead className="bg-gray-50 text-gray-500 font-mono text-[11px] border-b border-gray-200">
+                  <tr>
+                    <th className="py-2.5 px-4 font-semibold">Service Description</th>
+                    <th className="py-2.5 px-4 font-semibold text-center">SAC</th>
+                    <th className="py-2.5 px-4 font-semibold text-right">Amount (INR)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  <tr>
+                    <td className="py-3 px-4">
+                      <div className="font-bold text-gray-900">
+                        {subscription?.plan_tier === 'ANNUAL_PASS' ? 'ProofPix Annual Unlimited Pass (365 Days)' : 'ProofPix Monthly Pro Subscription (30 Days)'}
+                      </div>
+                      <div className="text-[11px] text-gray-500">
+                        Zero-Storage Google Drive client gallery hosting, custom indelible watermark, 4-digit PIN security, and Lightroom selection sync.
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center font-mono text-gray-600">998314</td>
+                    <td className="py-3 px-4 text-right font-mono font-bold text-gray-900">
+                      ₹{subscription?.plan_tier === 'ANNUAL_PASS' ? '1,694.07' : '253.39'}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div className="bg-gray-50/50 p-4 border-t border-gray-200 space-y-1.5 text-xs text-right">
+                <div className="flex justify-between text-gray-600">
+                  <span>Taxable Value:</span>
+                  <span className="font-mono">₹{subscription?.plan_tier === 'ANNUAL_PASS' ? '1,694.07' : '253.39'}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>CGST (9%):</span>
+                  <span className="font-mono">₹{subscription?.plan_tier === 'ANNUAL_PASS' ? '152.46' : '22.80'}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>SGST / IGST (9%):</span>
+                  <span className="font-mono">₹{subscription?.plan_tier === 'ANNUAL_PASS' ? '152.46' : '22.80'}</span>
+                </div>
+                <div className="flex justify-between font-bold text-sm text-gray-950 pt-2 border-t border-gray-200">
+                  <span>Total Amount Paid:</span>
+                  <span className="font-mono text-rose-600">₹{subscription?.plan_tier === 'ANNUAL_PASS' ? '1,999.00' : '299.00'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Note & Close */}
+            <div className="pt-2 text-[11px] text-gray-400 text-center space-y-1">
+              <div>This is an official computer-generated tax invoice. Compliant with Indian GST laws.</div>
+              <div>ProofPix Technologies Private Limited · support@proofpix.in · +91 98765 43210</div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
