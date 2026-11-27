@@ -242,7 +242,7 @@ async function runE2ETests() {
       await pinInput.fill('0000');
       await page.click('button[type="submit"]');
       await page.waitForTimeout(600);
-      const pinErrMsg = page.locator('div:has-text("Incorrect PIN")');
+      const pinErrMsg = page.locator('div.bg-red-50:has-text("Incorrect PIN"), span:has-text("Incorrect PIN")').first();
       if (await pinErrMsg.isVisible()) {
         record('Gallery PIN Gate Rejection', 'PASSED', 'Incorrect PIN rejected with error message');
       }
@@ -250,7 +250,7 @@ async function runE2ETests() {
       // Enter valid PIN
       await pinInput.fill('4829');
       await page.click('button[type="submit"]');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(1200);
       record('Gallery PIN Gate Unlock', 'PASSED', 'PIN 4829 unlocked gallery');
     } else {
       record('Gallery PIN Gate Unlock', 'PASSED', 'Session unlocked');
