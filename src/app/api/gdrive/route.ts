@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
   const rawFolderId = searchParams.get('folderId');
   const slug = searchParams.get('slug') || '';
   const pageToken = searchParams.get('pageToken') || undefined;
+  const apiKey = searchParams.get('apiKey') || undefined;
   const pageSizeParam = searchParams.get('pageSize');
   const pageSize = pageSizeParam ? Math.min(Math.max(parseInt(pageSizeParam, 10) || 50, 10), 100) : 50;
 
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
       folderId,
       pageToken,
       pageSize,
+      apiKey,
     });
 
     // Transform links to route through ProofPix secure server-side image proxy

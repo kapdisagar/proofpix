@@ -59,6 +59,7 @@ export default function DashboardPage() {
   const [maxSelection, setMaxSelection] = useState(100);
   const [watermarkText, setWatermarkText] = useState(profile.studio_name || 'The Royal Frames Studio');
   const [accessPin, setAccessPin] = useState('4829');
+  const [balanceAmount, setBalanceAmount] = useState(15000);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Profile Edit Form State
@@ -228,6 +229,22 @@ export default function DashboardPage() {
     setAuditLogs(getLocalAuditLogs());
     setPayments(getLocalPayments());
     setSubscription(getLocalSubscription());
+
+    // Fetch projects from server-backed API (synced across devices)
+    fetch('/api/projects')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.projects && data.projects.length > 0) {
+          const localProjs = getLocalProjects();
+          const map = new Map<string, Project>();
+          localProjs.forEach((p) => map.set(p.id, p));
+          data.projects.forEach((p: Project) => map.set(p.id, { ...map.get(p.id), ...p }));
+          const merged = Array.from(map.values());
+          setProjects(merged);
+          saveLocalProjects(merged);
+        }
+      })
+      .catch(console.error);
   }, []);
 
   // Save Profile Changes
@@ -247,9 +264,10 @@ export default function DashboardPage() {
 
   // Toggle Payment Lock (is_paid)
   const handleTogglePaymentLock = (projectId: string) => {
+    let nextState = false;
     const updated = projects.map((p) => {
       if (p.id === projectId) {
-        const nextState = !p.is_paid;
+        nextState = !p.is_paid;
         if (nextState) {
           confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
           showToast(`Unlocked downloads & removed watermark for ${p.event_name}`);
@@ -279,6 +297,13 @@ export default function DashboardPage() {
     setProjects(updated);
     saveLocalProjects(updated);
     setAuditLogs(getLocalAuditLogs());
+
+    // Sync state to server-side API
+    fetch('/api/projects', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: projectId, updates: { is_paid: nextState } }),
+    }).catch(console.error);
   };
 
   // Confirm Client UTR and Unlock Gallery
@@ -392,10 +417,14 @@ export default function DashboardPage() {
       event_name: eventName,
       client_name: clientName,
       client_whatsapp: clientWhatsapp,
+      studio_whatsapp: profile.whatsapp_number || '919876543210',
       drive_folder_id: folderId,
       max_selection: Number(maxSelection) || 100,
       watermark_text: watermarkText || profile.studio_name,
       access_pin: accessPin.trim() || null,
+      balance_amount: Number(balanceAmount) || 0,
+      razorpay_link: profile.razorpay_payment_link || null,
+      paypal_link: profile.paypal_me_link || null,
       is_paid: false,
       is_submitted: false,
       created_at: new Date().toISOString(),
@@ -406,6 +435,13 @@ export default function DashboardPage() {
     const updated = [newProject, ...projects];
     setProjects(updated);
     saveLocalProjects(updated);
+
+    // Sync to server API so client devices can immediately load the gallery
+    fetch('/api/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newProject),
+    }).catch(console.error);
 
     addLocalAuditLog({
       email: 'admin@studio.in',
@@ -1012,6 +1048,25 @@ export default function DashboardPage() {
                   placeholder="Studio Name watermark"
                   className="w-full px-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white"
                 />
+              </div>
+
+              <div>
+                <label className="block text-gray-700 font-medium mb-1">Pending Client Shoot Balance (₹):</label>
+                <div className="relative">
+                  <IndianRupee className="w-4 h-4 text-emerald-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="500"
+                    value={balanceAmount}
+                    onChange={(e) => setBalanceAmount(Number(e.target.value))}
+                    placeholder="e.g. 15000 (Enter 0 if already cleared)"
+                    className="w-full pl-9 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:border-black focus:bg-white font-semibold"
+                  />
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Amount client must clear to unlock high-res downloads. Set to 0 if client has already paid in full.
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">

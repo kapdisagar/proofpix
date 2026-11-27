@@ -5,6 +5,9 @@ export interface Profile {
   studio_name: string;
   whatsapp_number: string;
   upi_id?: string | null;
+  razorpay_payment_link?: string | null;
+  paypal_me_link?: string | null;
+  google_drive_api_key?: string | null;
   avatar_url?: string | null;
   auth_provider?: 'google' | 'email' | 'demo';
   google_id?: string | null;
@@ -25,10 +28,14 @@ export interface Project {
   event_name: string;
   client_name: string;
   client_whatsapp?: string | null;
+  studio_whatsapp?: string | null;
   drive_folder_id: string;
   max_selection: number;
   watermark_text: string;
   access_pin?: string | null;
+  balance_amount?: number;
+  razorpay_link?: string | null;
+  paypal_link?: string | null;
   is_paid: boolean;
   is_submitted: boolean;
   submitted_at?: string | null;

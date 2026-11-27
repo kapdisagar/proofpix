@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   Heart, MessageSquare, Download, Share2, Lock, Unlock, X, 
   ChevronLeft, ChevronRight, Check, Send, AlertCircle, Sparkles,
-  ShieldCheck, Eye, IndianRupee, QrCode, Smartphone, Copy
+  ShieldCheck, Eye, IndianRupee, QrCode, Smartphone, Copy, ExternalLink, Globe, CreditCard
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { Project, Selection, DrivePhoto } from '@/types/database';
@@ -91,14 +91,10 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
   useEffect(() => {
     if (!slug) return;
 
-    const allProjects = getLocalProjects();
-    const found = allProjects.find((p) => p.slug === slug);
-
-    if (found) {
+    const initProject = (found: Project) => {
       setProject(found);
       setIsSubmitted(found.is_submitted);
 
-      // Check if gallery was already unlocked in this browser session or has no PIN
       const isAlreadyUnlocked = 
         !found.access_pin || 
         (typeof window !== 'undefined' && sessionStorage.getItem(`proofpix_unlocked_${found.slug}`) === 'true');
@@ -141,26 +137,68 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
           setNextPageToken(null);
         })
         .finally(() => setLoading(false));
-    } else {
-      // Fallback sample project if slug not found
-      const demoProject: Project = {
-        id: 'proj-demo-generic',
-        photographer_id: 'photographer-demo-1',
-        slug: slug,
-        event_name: 'Royal Destination Wedding Gallery',
-        client_name: 'Priya Sharma',
-        client_whatsapp: '919876543210',
-        drive_folder_id: 'demo-folder',
-        max_selection: 100,
-        watermark_text: 'The Royal Frames Studio',
-        access_pin: '4829',
-        is_paid: false,
-        is_submitted: false,
-      };
-      setProject(demoProject);
-      setPhotos(SAMPLE_DRIVE_PHOTOS);
-      setLoading(false);
-    }
+    };
+
+    // 1. Try server-backed API first (so cross-device client links work immediately)
+    fetch(`/api/projects?slug=${encodeURIComponent(slug)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.project) {
+          initProject(data.project);
+        } else {
+          // Fallback to local storage or demo
+          const allProjects = getLocalProjects();
+          const localFound = allProjects.find((p) => p.slug === slug);
+          if (localFound) {
+            initProject(localFound);
+          } else {
+            initProject({
+              id: 'proj-demo-generic',
+              photographer_id: 'photographer-demo-1',
+              slug: slug,
+              event_name: 'Royal Destination Wedding Gallery',
+              client_name: 'Priya Sharma',
+              client_whatsapp: '919876543210',
+              studio_whatsapp: '919876543210',
+              drive_folder_id: 'demo-folder',
+              max_selection: 100,
+              watermark_text: 'The Royal Frames Studio',
+              access_pin: '4829',
+              balance_amount: 15000,
+              razorpay_link: 'https://rzp.io/l/royalstudio',
+              paypal_link: 'https://paypal.me/sagarkapdi',
+              is_paid: false,
+              is_submitted: false,
+            });
+          }
+        }
+      })
+      .catch(() => {
+        const allProjects = getLocalProjects();
+        const localFound = allProjects.find((p) => p.slug === slug);
+        if (localFound) {
+          initProject(localFound);
+        } else {
+          initProject({
+            id: 'proj-demo-generic',
+            photographer_id: 'photographer-demo-1',
+            slug: slug,
+            event_name: 'Royal Destination Wedding Gallery',
+            client_name: 'Priya Sharma',
+            client_whatsapp: '919876543210',
+            studio_whatsapp: '919876543210',
+            drive_folder_id: 'demo-folder',
+            max_selection: 100,
+            watermark_text: 'The Royal Frames Studio',
+            access_pin: '4829',
+            balance_amount: 15000,
+            razorpay_link: 'https://rzp.io/l/royalstudio',
+            paypal_link: 'https://paypal.me/sagarkapdi',
+            is_paid: false,
+            is_submitted: false,
+          });
+        }
+      });
   }, [slug]);
 
   // Handle PIN Submission with session persistence
@@ -301,6 +339,16 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
       );
       saveLocalProjects(updatedProjects);
       setIsSubmitted(true);
+
+      // Sync submission status to server so studio dashboard updates instantly
+      fetch('/api/projects', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: project.id,
+          updates: { is_submitted: true, submitted_at: new Date().toISOString() },
+        }),
+      }).catch(console.error);
     }
 
     confetti({ particleCount: 90, spread: 70, origin: { y: 0.5 } });
@@ -967,7 +1015,7 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
 
               <a
                 href={generateWhatsAppLink({
-                  phone: project.client_whatsapp || '919876543210',
+                  phone: project.studio_whatsapp || '919876543210',
                   eventName: project.event_name,
                   clientName: project.client_name,
                   totalSelected: selections.length,
@@ -994,86 +1042,165 @@ export default function ClientGalleryPage({ params }: { params?: { slug?: string
         </div>
       )}
 
-      {/* UPI PAYMENT MODAL (WITH DEEP LINKING FOR MOBILE) */}
+      {/* MULTI-CHANNEL CLIENT CHECKOUT MODAL (UPI, RAZORPAY, PAYPAL & UTR) */}
       {isUpiModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="relative w-full max-w-sm bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 space-y-5 shadow-2xl text-center">
+          <div className="relative w-full max-w-md bg-white rounded-3xl border border-gray-200 p-6 sm:p-7 space-y-5 shadow-2xl text-center max-h-[90vh] overflow-y-auto">
+            {/* Header */}
             <div className="flex items-center justify-between pb-2 border-b border-gray-100">
-              <span className="text-xs font-mono font-semibold text-gray-500 uppercase">Studio Payment</span>
+              <div className="flex items-center gap-1.5 text-left">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span className="text-xs font-mono font-semibold text-gray-700 uppercase">Direct Studio Payment</span>
+              </div>
               <button onClick={() => setIsUpiModalOpen(false)} className="text-gray-400 hover:text-black">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="space-y-1">
-              <h4 className="font-serif text-xl font-bold text-gray-950">
-                Unlock High-Res Downloads
-              </h4>
-              <p className="text-xs text-gray-500">
-                Scan with any UPI app (GPay, PhonePe, Paytm, CRED). Once payment is received, the studio marks it cleared to unlock full-res files.
+            {/* Shoot Balance Header */}
+            <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-2xl p-4 text-center space-y-1">
+              <span className="text-[10px] font-mono uppercase text-emerald-700 font-bold tracking-wider">
+                Pending Shoot Balance
+              </span>
+              <div className="font-serif text-3xl font-extrabold text-emerald-950">
+                ₹{(project.balance_amount || 15000).toLocaleString('en-IN')}
+              </div>
+              <p className="text-[11px] text-emerald-800 font-medium">
+                100% of payment goes directly to <strong>{project.watermark_text || 'the studio'}</strong>. No middlemen.
               </p>
             </div>
 
-            {/* Direct Mobile UPI App Intent Button */}
-            <a
-              href={generateUpiPaymentUrl({
-                upiId: project.profiles?.upi_id || 'royalstudio@oksbi',
-                studioName: project.watermark_text || 'Studio',
-                eventName: project.event_name,
-              })}
-              className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
-            >
-              <Smartphone className="w-4 h-4" />
-              <span>Open in UPI App (GPay / PhonePe / Paytm)</span>
-            </a>
+            {/* Payment Methods */}
+            <div className="space-y-3 text-left">
+              <div className="text-xs font-semibold text-gray-900">Choose How to Pay:</div>
 
-            {/* QR Mockup */}
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex flex-col items-center justify-center space-y-2">
-              <div className="w-36 h-36 bg-white border border-gray-300 rounded-lg flex items-center justify-center p-2 shadow-inner">
-                <QrCode className="w-28 h-28 text-gray-900" />
+              {/* OPTION 1: UPI SCAN & PAY */}
+              <div className="p-3.5 rounded-2xl border border-gray-200 bg-gray-50/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold text-xs text-gray-900 flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4 text-emerald-600" />
+                    <span>Instant UPI (GPay, PhonePe, Paytm, CRED)</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">0% Fees</span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-3.5 pt-1">
+                  {/* Dynamic QR Code */}
+                  <div className="w-32 h-32 bg-white border border-gray-300 rounded-xl p-1.5 flex items-center justify-center shrink-0 shadow-xs">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                        `upi://pay?pa=${project.profiles?.upi_id || 'royalstudio@oksbi'}&pn=${encodeURIComponent(
+                          project.watermark_text || 'Studio'
+                        )}&am=${project.balance_amount || 15000}&tn=${encodeURIComponent(project.event_name + '_Balance')}&cu=INR`
+                      )}`}
+                      alt="Studio Payment QR"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+
+                  <div className="space-y-2 flex-1 text-xs">
+                    <a
+                      href={generateUpiPaymentUrl({
+                        upiId: project.profiles?.upi_id || 'royalstudio@oksbi',
+                        studioName: project.watermark_text || 'Studio',
+                        eventName: project.event_name,
+                      })}
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all"
+                    >
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>Open in UPI App</span>
+                    </a>
+
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(project.profiles?.upi_id || 'royalstudio@oksbi');
+                        showToast('UPI ID copied to clipboard!');
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-100 text-gray-800 font-medium text-xs flex items-center justify-center gap-1.5"
+                    >
+                      <Copy className="w-3.5 h-3.5 text-gray-500" />
+                      <span className="truncate">Copy: {project.profiles?.upi_id || 'royalstudio@oksbi'}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="font-mono text-xs font-semibold text-gray-900">
-                UPI ID: {project.profiles?.upi_id || 'royalstudio@oksbi'}
-              </div>
+
+              {/* OPTION 2: RAZORPAY LINK (CARDS / NETBANKING / WALLETS) */}
+              {(project.razorpay_link || project.profiles?.razorpay_payment_link) && (
+                <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-xs text-blue-950 flex items-center gap-1.5">
+                      <CreditCard className="w-4 h-4 text-blue-600" />
+                      <span>Cards / NetBanking / Wallets (Razorpay)</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-600">
+                    Pay securely using Credit Cards, Debit Cards, NetBanking or EMI directly to the studio's Razorpay account.
+                  </p>
+                  <a
+                    href={project.razorpay_link || project.profiles?.razorpay_payment_link || 'https://rzp.io/l/royalstudio'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+                  >
+                    <span>Pay with Cards via Razorpay</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+
+              {/* OPTION 3: PAYPAL (NRI & INTERNATIONAL CLIENTS) */}
+              {(project.paypal_link || project.profiles?.paypal_me_link) && (
+                <div className="p-3.5 rounded-2xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold text-xs text-indigo-950 flex items-center gap-1.5">
+                      <Globe className="w-4 h-4 text-indigo-600" />
+                      <span>International / NRI Clients (PayPal)</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-gray-600">
+                    Pay from outside India in USD/EUR/GBP using any international card or PayPal balance.
+                  </p>
+                  <a
+                    href={project.paypal_link || project.profiles?.paypal_me_link || 'https://paypal.me/sagarkapdi'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-2.5 px-4 rounded-xl bg-[#0070BA] hover:bg-[#005ea6] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-xs transition-all"
+                  >
+                    <span>Pay with PayPal (International)</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
             </div>
-
-            <button
-              onClick={() => {
-                navigator.clipboard?.writeText(project.profiles?.upi_id || 'royalstudio@oksbi');
-                showToast('UPI ID copied to clipboard!');
-              }}
-              className="w-full py-2.5 rounded-xl border border-gray-300 hover:bg-gray-50 text-gray-900 font-semibold text-xs"
-            >
-              Copy UPI ID
-            </button>
 
             {/* UTR Reference Submission for Instant Unlock */}
             <form onSubmit={handleUtrSubmit} className="space-y-2 pt-3 border-t border-gray-100 text-left">
               <label className="block text-[11px] font-semibold text-gray-700">
-                Already Paid via UPI? Enter 12-Digit Bank UTR / Ref No:
+                Already Transferred? Enter 12-Digit Bank UTR / Transaction ID:
               </label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   required
-                  maxLength={16}
+                  maxLength={18}
                   value={utrInput}
                   onChange={(e) => setUtrInput(e.target.value)}
-                  placeholder="e.g. 489210485912"
+                  placeholder="e.g. 489210485912 or UPI Ref"
                   className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-mono outline-none focus:border-black"
                 />
                 <button
                   type="submit"
                   disabled={isSubmittingUtr}
-                  className="px-3.5 py-2 bg-black hover:bg-gray-800 text-white font-semibold text-xs rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 bg-black hover:bg-gray-800 text-white font-semibold text-xs rounded-xl transition-colors disabled:opacity-50 shrink-0 cursor-pointer"
                 >
-                  {isSubmittingUtr ? 'Verifying...' : 'Submit UTR'}
+                  {isSubmittingUtr ? 'Verifying...' : 'Submit Ref'}
                 </button>
               </div>
 
               {utrSuccess && (
-                <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 font-medium">
-                  ✅ UTR reference submitted! Studio has been notified to verify and unlock your downloads.
+                <div className="text-[11px] text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 font-medium animate-fadeIn">
+                  ✅ Payment reference recorded! The photographer has been alerted to verify and unlock your high-res gallery.
                 </div>
               )}
             </form>

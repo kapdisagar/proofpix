@@ -48,6 +48,9 @@ export default function ProfilePage() {
   const [studioName, setStudioName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [upiId, setUpiId] = useState('');
+  const [razorpayLink, setRazorpayLink] = useState('');
+  const [paypalLink, setPaypalLink] = useState('');
+  const [driveApiKey, setDriveApiKey] = useState('');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -66,6 +69,9 @@ export default function ProfilePage() {
     setStudioName(loadedProfile.studio_name || 'The Royal Frames Studio');
     setWhatsapp(loadedProfile.whatsapp_number || '919876543210');
     setUpiId(loadedProfile.upi_id || 'royalstudio@oksbi');
+    setRazorpayLink(loadedProfile.razorpay_payment_link || 'https://rzp.io/l/royalstudio');
+    setPaypalLink(loadedProfile.paypal_me_link || 'https://paypal.me/sagarkapdi');
+    setDriveApiKey(loadedProfile.google_drive_api_key || '');
     setBio(loadedProfile.bio || 'Luxury Destination Wedding & Pre-wedding Cinematography.');
     setCity(loadedProfile.city || 'Udaipur & Mumbai, India');
     setInstagram(loadedProfile.instagram_handle || '@royalstudio.in');
@@ -85,6 +91,9 @@ export default function ProfilePage() {
       studio_name: studioName.trim(),
       whatsapp_number: whatsapp.trim(),
       upi_id: upiId.trim(),
+      razorpay_payment_link: razorpayLink.trim() || null,
+      paypal_me_link: paypalLink.trim() || null,
+      google_drive_api_key: driveApiKey.trim() || null,
       bio: bio.trim(),
       city: city.trim(),
       instagram_handle: instagram.trim(),
@@ -445,11 +454,12 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
                 <div className="border-b border-gray-100 pb-2">
-                  <h3 className="font-semibold text-sm text-gray-900">Direct UPI Payout Settings</h3>
-                  <p className="text-xs text-gray-500">Enter your UPI VPA to receive client balance payments instantly.</p>
+                  <h3 className="font-semibold text-sm text-gray-900">Direct Client Payout Settings</h3>
+                  <p className="text-xs text-gray-500">Add your UPI ID, Razorpay Link, or PayPal link to collect client shoot payments directly into your account.</p>
                 </div>
 
-                <div className="space-y-3 text-xs">
+                <div className="space-y-4 text-xs">
+                  {/* UPI VPA */}
                   <div>
                     <label className="block text-gray-700 font-medium mb-1">Studio UPI ID (VPA)</label>
                     <div className="relative">
@@ -464,6 +474,38 @@ export default function ProfilePage() {
                       />
                     </div>
                     <p className="text-[11px] text-gray-400 mt-1">Supports Google Pay, PhonePe, Paytm, CRED & BHIM.</p>
+                  </div>
+
+                  {/* Razorpay Payment Link */}
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Studio Razorpay Payment Link / Page</label>
+                    <div className="relative">
+                      <ExternalLink className="w-4 h-4 text-blue-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="url"
+                        value={razorpayLink}
+                        onChange={(e) => setRazorpayLink(e.target.value)}
+                        placeholder="https://rzp.io/l/your-studio or https://pages.razorpay.com/..."
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:bg-white focus:border-black font-mono"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">Paste your Razorpay Payment Link. Clients can pay via Credit/Debit Cards, NetBanking & Wallets directly into your Razorpay account.</p>
+                  </div>
+
+                  {/* PayPal.me Link */}
+                  <div>
+                    <label className="block text-gray-700 font-medium mb-1">Studio PayPal.me Link (for NRI & Global Clients)</label>
+                    <div className="relative">
+                      <Globe className="w-4 h-4 text-indigo-600 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={paypalLink}
+                        onChange={(e) => setPaypalLink(e.target.value)}
+                        placeholder="https://paypal.me/yourusername or yourusername"
+                        className="w-full pl-9 pr-3.5 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:bg-white focus:border-black font-mono"
+                      />
+                    </div>
+                    <p className="text-[11px] text-gray-400 mt-1">For destination weddings with NRI or international clients paying in USD/EUR/GBP.</p>
                   </div>
 
                   <div>
@@ -483,15 +525,15 @@ export default function ProfilePage() {
                   <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 space-y-1">
                     <div className="font-semibold flex items-center gap-1.5">
                       <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>Zero Platform Fees (0% Cut)</span>
+                      <span>Zero Platform Fees (0% Cut by ProofPix)</span>
                     </div>
-                    <p>When clients scan your QR or pay balance via UPI, 100% of money arrives directly in your bank account.</p>
+                    <p>When clients pay via UPI, Razorpay, or PayPal, 100% of the funds go directly into your own bank / merchant account.</p>
                   </div>
                 </div>
               </div>
 
-              {/* Live Dynamic QR Code Card */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-3 text-center">
+              {/* Live Dynamic QR Code Card & Payment Methods Preview */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4 text-center">
                 <h3 className="font-semibold text-sm text-gray-900">Your Live Client Payment QR</h3>
                 <p className="text-xs text-gray-500">Clients scan this inside their private gallery to clear balance.</p>
                 
@@ -501,13 +543,33 @@ export default function ProfilePage() {
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
                         `upi://pay?pa=${upiId || 'royalstudio@oksbi'}&pn=${encodeURIComponent(studioName)}&cu=INR`
                       )}`}
-                      alt="UPI QR Code"
+                      alt="Studio UPI QR"
                       className="w-full h-full object-contain"
                     />
                   </div>
                 </div>
                 <div className="font-mono text-xs font-bold text-gray-900">{upiId || 'royalstudio@oksbi'}</div>
                 <p className="text-[11px] text-gray-400">Scan with any UPI app · Real-time Dynamic Generation</p>
+
+                {/* Direct Link Badges */}
+                <div className="pt-3 border-t border-gray-100 flex flex-col gap-2 text-left">
+                  <div className="text-[11px] font-semibold text-gray-700">Client Checkout Options Enabled:</div>
+                  <div className="flex flex-wrap gap-1.5 text-[11px]">
+                    <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 font-medium">
+                      ✓ UPI QR (GPay, PhonePe, Paytm)
+                    </span>
+                    {razorpayLink && (
+                      <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 font-medium">
+                        ✓ Razorpay Link Active
+                      </span>
+                    )}
+                    {paypalLink && (
+                      <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 font-medium">
+                        ✓ PayPal Active
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -575,6 +637,19 @@ export default function ProfilePage() {
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>Razorpay Webhook Verification: <strong>HMAC SHA-256 Armed</strong></span>
                   </div>
+                </div>
+
+                {/* Optional Custom Google Drive API Key */}
+                <div className="pt-3 border-t border-gray-100 space-y-1.5 text-left text-xs">
+                  <label className="block text-gray-700 font-medium">Custom Google Drive API Key (Optional):</label>
+                  <input
+                    type="password"
+                    value={driveApiKey}
+                    onChange={(e) => setDriveApiKey(e.target.value)}
+                    placeholder="AIzaSy... (leave blank to use ProofPix edge cloud)"
+                    className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-900 outline-none focus:bg-white focus:border-black font-mono text-[11px]"
+                  />
+                  <p className="text-[10px] text-gray-400">If provided, your client galleries fetch directly with your studio's Google Cloud quota.</p>
                 </div>
               </div>
             </div>
