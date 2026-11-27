@@ -119,7 +119,7 @@ async function runE2ETests() {
         await page.screenshot({ path: path.join(SCREENSHOT_DIR, '08-google-picker-modal.png') });
         
         // Select pre-set Google account
-        const accountOption = page.locator('button:has-text("sagar.kapdi@royalstudio.in")');
+        const accountOption = page.locator('button:has-text("sagarkapdi.photo@gmail.com"), button:has-text("Sagar Kapdi")').first();
         if (await accountOption.isVisible()) {
           await accountOption.click();
         } else {

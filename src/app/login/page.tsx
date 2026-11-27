@@ -34,6 +34,17 @@ export default function LoginPage() {
     setGoogleLoading(true);
     setErrorMsg(null);
 
+    // Check if Supabase URL is mock/unconfigured
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const isMock = !supabaseUrl || supabaseUrl.includes('mock-proofpix');
+
+    if (isMock) {
+      // In standalone / preview mode, open the verified Google Account Selection modal directly
+      setIsGoogleModalOpen(true);
+      setGoogleLoading(false);
+      return;
+    }
+
     try {
       const supabase = createClient();
       const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '';
@@ -49,14 +60,11 @@ export default function LoginPage() {
         },
       });
 
-      if (error) {
-        // If Supabase OAuth returns an unconfigured client ID or fails in sandbox, open the Google Account Picker
-        console.warn('Supabase OAuth notice:', error.message);
+      if (error || !data?.url) {
+        console.warn('Supabase OAuth notice:', error?.message);
         setIsGoogleModalOpen(true);
-      } else if (data?.url) {
-        window.location.href = data.url;
       } else {
-        setIsGoogleModalOpen(true);
+        window.location.href = data.url;
       }
     } catch (err: any) {
       console.warn('OAuth redirect notice, launching Google Account Picker:', err);
